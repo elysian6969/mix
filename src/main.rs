@@ -232,6 +232,8 @@ pub mod spec {
                         depth: 0,
                     },
                 )?;
+
+                fs::remove_dir_all(&sbin)?;
             }
 
             fs::remove_dir_all(&dirs.build)?;
