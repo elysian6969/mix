@@ -42,13 +42,45 @@ pub mod shell {
             write!(f, "{}", self.to_display())
         }
     }
+
+    /// Action to print to the terminal
+    #[derive(Clone, Copy, Debug)]
+    pub enum Status {
+        Error,
+        Warning,
+    }
+
+    impl Status {
+        pub fn ias_str(&self) -> &str {
+            match self {
+                Status::Error => "error",
+                Status::Warning => "warning",
+            }
+        }
+
+        pub fn to_display(&self) -> impl fmt::Display {
+            let text = match self {
+                Status::Error => "error".red(),
+                Status::Warning => "warning".yellow(),
+            };
+
+            format!("{}:", text)
+        }
+    }
+
+    impl fmt::Display for Status {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "{}", self.to_display())
+        }
+    }
 }
 
 pub mod spec {
     use super::candy::{Candy, Dirs};
-    use super::shell::Action;
+    use super::shell::{Action, Status};
     use super::triple::Triple;
     // FIXME: use nix::{pty, unistd};
+    use fs_extra::dir::CopyOptions;
     use serde::{Deserialize, Serialize};
     use std::fs;
     use std::os::unix::io::FromRawFd;
@@ -117,13 +149,22 @@ pub mod spec {
                 args.extend(opts.iter().map(|opt| format!("--without-{}", opt)));
             }
 
-            fs::remove_dir_all(&dirs.build)?;
+            if dirs.build.exists() {
+                fs::remove_dir_all(&dirs.build)?;
+            }
+
             fs::create_dir_all(&dirs.build)?;
 
             //let pair = pty::openpty(None, None)?;
             //let stderr = unistd::dup(pair.slave)?;
 
-            let mut child = Command::new(dirs.source.clone().join("configure"))
+            let configure = dirs.source.clone().join("configure");
+
+            if !configure.exists() {
+                println!("{} package does not have a configure script", Status::Error);
+            }
+
+            let mut child = Command::new(configure)
                 .args(&args)
                 .current_dir(&dirs.build)
                 .env("CC", "/usr/bin/gcc")
@@ -164,6 +205,36 @@ pub mod spec {
                 .spawn()?;
 
             let status = child.wait().await?;
+
+            let bin = dirs.target.clone().join("sbin");
+            let sbin = dirs.target.clone().join("sbin");
+
+            if sbin.exists() {
+                println!(
+                    "{} package failed to respect configuration, /sbin exists",
+                    Status::Warning
+                );
+
+                let files: Vec<_> = fs::read_dir(&sbin)?
+                    .flatten()
+                    .map(|entry| entry.path())
+                    .collect();
+
+                fs_extra::move_items(
+                    &files,
+                    bin,
+                    &CopyOptions {
+                        overwrite: false,
+                        skip_exist: true,
+                        buffer_size: 64000,
+                        copy_inside: true,
+                        content_only: false,
+                        depth: 0,
+                    },
+                )?;
+
+                fs::remove_dir_all(&sbin)?;
+            }
 
             fs::remove_dir_all(&dirs.build)?;
 
