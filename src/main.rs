@@ -1,13 +1,7 @@
-use crossterm::style;
-use crossterm::style::{Colorize, Styler};
-use serde::{Deserialize, Serialize};
-use std::fs;
 use std::fs::File;
 use std::io::Read;
-use std::iter;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use structopt::StructOpt;
-use tokio::process::Command;
 
 pub mod shell {
     use crossterm::style::{Colorize, Styler};
@@ -79,11 +73,10 @@ pub mod shell {
 
 pub mod util {
     use std::{
-        ffi::OsStr,
         fs,
         path::{Path, PathBuf},
     };
-    use tokio::process::{Child, Command};
+    use tokio::process::Command;
 
     pub struct Git {
         branch: Option<String>,
@@ -123,7 +116,7 @@ pub mod util {
         pub async fn execute(&mut self) -> anyhow::Result<()> {
             fs::create_dir_all(&self.dest)?;
 
-            let mut inner = &mut self.inner;
+            let inner = &mut self.inner;
 
             if let Some(branch) = self.branch.as_ref() {
                 inner.arg(format!("--branch={}", branch));
@@ -140,15 +133,11 @@ pub mod util {
 
 pub mod spec {
     use super::candy::{Candy, Dirs};
-    use super::shell::{Action, Status};
+    use super::shell::Action;
     use super::triple::Triple;
     use super::util::Git;
-    // FIXME: use nix::{pty, unistd};
-    use fs_extra::dir::CopyOptions;
     use serde::{Deserialize, Serialize};
     use std::fs;
-    use std::os::unix::io::FromRawFd;
-    use std::process::Stdio;
     use tokio::process::Command;
 
     /// defines name, version, sources
