@@ -287,6 +287,10 @@ pub mod spec {
                 .execute(Action::Installing, &self, &dirs)
                 .await?;
 
+            if dirs.build.exists() {
+                fs::remove_dir_all(&dirs.build)?;
+            }
+
             Ok(())
         }
     }
