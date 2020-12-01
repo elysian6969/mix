@@ -86,6 +86,7 @@ pub mod util {
     use tokio::process::{Child, Command};
 
     pub struct Git {
+        branch: Option<String>,
         dest: PathBuf,
         inner: Command,
     }
@@ -107,11 +108,26 @@ pub mod util {
                 .current_dir(&dest)
                 .env_clear();
 
-            Self { dest, inner }
+            Self {
+                branch: None,
+                dest,
+                inner,
+            }
+        }
+
+        pub fn branch<B: AsRef<str>>(&mut self, branch: B) -> &mut Self {
+            self.branch = Some(branch.as_ref().to_string());
+            self
         }
 
         pub async fn execute(&mut self) -> anyhow::Result<()> {
             fs::create_dir_all(&self.dest)?;
+
+            let mut inner = &mut self.inner;
+
+            if let Some(branch) = self.branch.as_ref() {
+                inner.arg(format!("--branch={}", branch));
+            }
 
             let mut child = self.inner.spawn()?;
 
@@ -141,6 +157,7 @@ pub mod spec {
         pub name: String,
         pub version: String,
         pub source: String,
+        pub branch: Option<String>,
     }
 
     /// list of actions to execute in a stage
@@ -154,17 +171,20 @@ pub mod spec {
             spec: &Spec,
             dirs: &Dirs,
         ) -> anyhow::Result<()> {
-            if self.0.as_ref().map(|vec| vec.len()).unwrap_or(0) > 0 {
-                println!("{} {}", action, spec.package_name());
+            if self.0.is_some() {
+                println!("{} {}", action, &spec.package.name);
             }
 
             for action in self.0.iter().flatten() {
-                let action = action.replace("%source", &dirs.source.display().to_string());
-                let action = action.replace("%prefix", &dirs.target.display().to_string());
+                let action = action
+                    .replace("%build", &dirs.build.display().to_string())
+                    .replace("%prefix", &dirs.target.display().to_string())
+                    .replace("%source", &dirs.source.display().to_string());
+
                 let args = shell_words::split(&action)?;
 
-                if args.len() > 1 {
-                    println!("{} {} {:?}", Action::Running, spec.package_name(), &args);
+                if args.len() > 0 {
+                    println!("{} {} {:?}", Action::Running, spec.package.name, &args);
 
                     let mut child = Command::new(&args[0])
                         .args(&args[1..])
@@ -192,25 +212,19 @@ pub mod spec {
     }
 
     impl Spec {
-        pub fn package_name(&self) -> &str {
-            self.package.name.as_str()
-        }
-
-        pub fn package_version(&self) -> &str {
-            self.package.version.as_str()
-        }
-
-        pub fn package_source(&self) -> String {
-            format!("https://github.com/{}", self.package.source)
-        }
-
         pub async fn execute(&self, candy: &Candy, triple: &Triple<'_>) -> anyhow::Result<()> {
             let dirs = candy.dirs_of(&self, &triple);
-            let source = self.package_source();
+            let source = format!("https://github.com/{}", &self.package.source);
 
-            println!("{} {}", Action::Updating, self.package_name());
+            println!("{} {}", Action::Updating, &self.package.name);
 
-            Git::clone(&source, &dirs.source).execute().await?;
+            let mut git = Git::clone(source, &dirs.source);
+
+            if let Some(branch) = self.package.branch.as_ref() {
+                git.branch(branch);
+            }
+
+            git.execute().await?;
 
             if dirs.build.exists() {
                 fs::remove_dir_all(&dirs.build)?;
@@ -284,17 +298,17 @@ pub mod triple {
         }
 
         /// Set the system to linux
-        pub const fn linux(mut self) -> Self {
+        pub const fn linux(self) -> Self {
             self.sys("linux")
         }
 
         /// Set the ABI to GNU
-        pub const fn gnu(mut self) -> Self {
+        pub const fn gnu(self) -> Self {
             self.abi("gnu")
         }
 
         /// Set the ABI to musl
-        pub const fn musl(mut self) -> Self {
+        pub const fn musl(self) -> Self {
             self.abi("musl")
         }
 
@@ -355,7 +369,7 @@ pub mod candy {
         /// Return the source directory of a spec relative to
         /// this instance's root directory
         pub fn source_of(&self, spec: &Spec) -> PathBuf {
-            self.root().join("source").join(spec.package_name())
+            self.root().join("source").join(&spec.package.name)
         }
 
         /// Return the build directory of a spec relative to this
@@ -366,7 +380,7 @@ pub mod candy {
             self.root()
                 .join("build")
                 .join(triple.to_string().unwrap())
-                .join(spec.package_name())
+                .join(&spec.package.name)
         }
 
         /// Return the target directory of a spec relative to this
@@ -376,7 +390,7 @@ pub mod candy {
         pub fn target_of(&self, spec: &Spec, triple: &Triple) -> PathBuf {
             self.root()
                 .join(triple.to_string().unwrap())
-                .join(spec.package_name())
+                .join(&spec.package.name)
         }
 
         /// Shorthand for (source_of, build_of, target_of)
