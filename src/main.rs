@@ -16,18 +16,20 @@ pub mod shell {
     /// Action to print to the terminal
     #[derive(Clone, Copy, Debug)]
     pub enum Action {
-        Compiling,
-        Configuring,
+        Building,
         Installing,
+        Preparing,
+        Running,
         Updating,
     }
 
     impl Action {
         pub fn as_str(&self) -> &str {
             match self {
-                Action::Compiling => "compiling",
-                Action::Configuring => "configuring",
+                Action::Building => "building",
                 Action::Installing => "installing",
+                Action::Preparing => "preparing",
+                Action::Running => "running",
                 Action::Updating => "updating",
             }
         }
@@ -51,7 +53,7 @@ pub mod shell {
     }
 
     impl Status {
-        pub fn ias_str(&self) -> &str {
+        pub fn as_str(&self) -> &str {
             match self {
                 Status::Error => "error",
                 Status::Warning => "warning",
@@ -75,10 +77,56 @@ pub mod shell {
     }
 }
 
+pub mod util {
+    use std::{
+        ffi::OsStr,
+        fs,
+        path::{Path, PathBuf},
+    };
+    use tokio::process::{Child, Command};
+
+    pub struct Git {
+        dest: PathBuf,
+        inner: Command,
+    }
+
+    impl Git {
+        pub fn clone<R, D>(repo: R, dest: D) -> Self
+        where
+            R: AsRef<str>,
+            D: AsRef<Path>,
+        {
+            let dest = dest.as_ref().to_path_buf();
+            let mut inner = Command::new("git");
+
+            inner
+                .arg("clone")
+                .arg("--depth=1")
+                .arg(repo.as_ref())
+                .arg(&dest)
+                .current_dir(&dest)
+                .env_clear();
+
+            Self { dest, inner }
+        }
+
+        pub async fn execute(&mut self) -> anyhow::Result<()> {
+            fs::create_dir_all(&self.dest)?;
+
+            let mut child = self.inner.spawn()?;
+
+            child.wait().await?;
+
+            Ok(())
+        }
+    }
+}
+
 pub mod spec {
     use super::candy::{Candy, Dirs};
     use super::shell::{Action, Status};
     use super::triple::Triple;
+    use super::util::Git;
     // FIXME: use nix::{pty, unistd};
     use fs_extra::dir::CopyOptions;
     use serde::{Deserialize, Serialize};
@@ -87,67 +135,82 @@ pub mod spec {
     use std::process::Stdio;
     use tokio::process::Command;
 
-    #[derive(Debug, Deserialize, Serialize)]
-    pub struct Package<'package> {
-        name: &'package str,
-        version: &'package str,
-        source: &'package str,
+    /// defines name, version, sources
+    #[derive(Clone, Debug, Deserialize, Serialize)]
+    pub struct Package {
+        pub name: String,
+        pub version: String,
+        pub source: String,
     }
 
-    #[derive(Debug, Deserialize, Serialize)]
-    pub struct Configure<'config> {
-        #[serde(borrow)]
-        disable: Option<Vec<&'config str>>,
-        #[serde(borrow)]
-        enable: Option<Vec<&'config str>>,
-        #[serde(borrow)]
-        with: Option<Vec<&'config str>>,
-        #[serde(borrow)]
-        without: Option<Vec<&'config str>>,
-    }
+    /// list of actions to execute in a stage
+    #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+    pub struct Actions(Option<Vec<String>>);
 
-    impl<'configure> Configure<'configure> {
-        pub async fn configure<'spec>(
+    impl Actions {
+        pub async fn execute(
             &self,
-            spec: &Spec<'spec>,
+            action: Action,
+            spec: &Spec,
             dirs: &Dirs,
         ) -> anyhow::Result<()> {
-            println!("{} {}", Action::Configuring, spec.name());
-
-            let mut args = vec![
-                format!("--prefix={}", dirs.target.display()),
-                format!("--bindir={}/bin", dirs.target.display()),
-                format!("--sbindir={}/bin", dirs.target.display()),
-                format!("--libexecdir={}/bin", dirs.target.display()),
-                format!("--sysconfdir={}/conf", dirs.target.display()),
-                format!("--sharedstatedir={}/conf", dirs.target.display()),
-                format!("--localstatedir={}/conf", dirs.target.display()),
-                format!("--libdir={}/lib", dirs.target.display()),
-                format!("--includedir={}/abi", dirs.target.display()),
-                format!("--oldincludedir={}/abi", dirs.target.display()),
-                format!("--datarootdir={}/conf", dirs.target.display()),
-                format!("--datadir={}/conf", dirs.target.display()),
-                format!("--infodir={}/info", dirs.target.display()),
-                format!("--mandir={}/info/man", dirs.target.display()),
-                format!("--localedir={}/info/locale", dirs.target.display()),
-                format!("--docdir={}/info", dirs.target.display()),
-            ];
-
-            if let Some(ref opts) = self.disable {
-                args.extend(opts.iter().map(|opt| format!("--disable-{}", opt)));
+            if self.0.as_ref().map(|vec| vec.len()).unwrap_or(0) > 0 {
+                println!("{} {}", action, spec.package_name());
             }
 
-            if let Some(ref opts) = self.enable {
-                args.extend(opts.iter().map(|opt| format!("--enable-{}", opt)));
+            for action in self.0.iter().flatten() {
+                let action = action.replace("%source", &dirs.source.display().to_string());
+                let action = action.replace("%prefix", &dirs.target.display().to_string());
+                let args = shell_words::split(&action)?;
+
+                if args.len() > 1 {
+                    println!("{} {} {:?}", Action::Running, spec.package_name(), &args);
+
+                    let mut child = Command::new(&args[0])
+                        .args(&args[1..])
+                        .current_dir(&dirs.build)
+                        .spawn()?;
+
+                    child.wait().await?;
+                }
             }
 
-            if let Some(ref opts) = self.with {
-                args.extend(opts.iter().map(|opt| format!("--with-{}", opt)));
-            }
+            Ok(())
+        }
+    }
 
-            if let Some(ref opts) = self.without {
-                args.extend(opts.iter().map(|opt| format!("--without-{}", opt)));
-            }
+    // package spec
+    #[derive(Clone, Debug, Deserialize, Serialize)]
+    pub struct Spec {
+        pub package: Package,
+        #[serde(default)]
+        pub prepare: Actions,
+        #[serde(default)]
+        pub build: Actions,
+        #[serde(default)]
+        pub install: Actions,
+    }
+
+    impl Spec {
+        pub fn package_name(&self) -> &str {
+            self.package.name.as_str()
+        }
+
+        pub fn package_version(&self) -> &str {
+            self.package.version.as_str()
+        }
+
+        pub fn package_source(&self) -> String {
+            format!("https://github.com/{}", self.package.source)
+        }
+
+        pub async fn execute(&self, candy: &Candy, triple: &Triple<'_>) -> anyhow::Result<()> {
+            let dirs = candy.dirs_of(&self, &triple);
+            let source = self.package_source();
+
+            println!("{} {}", Action::Updating, self.package_name());
+
+            Git::clone(&source, &dirs.source).execute().await?;
 
             if dirs.build.exists() {
                 fs::remove_dir_all(&dirs.build)?;
@@ -155,137 +218,23 @@ pub mod spec {
 
             fs::create_dir_all(&dirs.build)?;
 
-            //let pair = pty::openpty(None, None)?;
-            //let stderr = unistd::dup(pair.slave)?;
+            self.prepare
+                .execute(Action::Preparing, &self, &dirs)
+                .await?;
 
-            let configure = dirs.source.clone().join("configure");
+            self.build.execute(Action::Building, &self, &dirs).await?;
 
-            if !configure.exists() {
-                println!("{} package does not have a configure script", Status::Error);
+            if dirs.target.exists() {
+                fs::remove_dir_all(&dirs.target)?;
             }
 
-            let mut child = Command::new(configure)
-                .args(&args)
-                .current_dir(&dirs.build)
-                .env("CC", "/usr/bin/gcc")
-                .env("CXX", "/usr/bin/g++")
-                .kill_on_drop(true)
-                //     .stderr(unsafe { Stdio::from_raw_fd(stderr) })
-                //     .stdout(unsafe { Stdio::from_raw_fd(pair.slave) })
-                .spawn()?;
-
-            let status = child.wait().await?;
-
-            println!("{} {}", Action::Compiling, spec.name());
-
-            //let pair = pty::openpty(None, None)?;
-
-            let mut child = Command::new("make")
-                .current_dir(&dirs.build)
-                .kill_on_drop(true)
-                //    .stderr(unsafe { Stdio::from_raw_fd(pair.slave) })
-                //    .stdout(unsafe { Stdio::from_raw_fd(pair.slave) })
-                .spawn()?;
-
-            let status = child.wait().await?;
-
-            println!("{} {}", Action::Installing, spec.name());
-
-            //let pair = pty::openpty(None, None)?;
-
-            fs::remove_dir_all(&dirs.target)?;
             fs::create_dir_all(&dirs.target)?;
 
-            let mut child = Command::new("make")
-                .arg("install")
-                .current_dir(&dirs.build)
-                .kill_on_drop(true)
-                //    .stderr(unsafe { Stdio::from_raw_fd(pair.slave) })
-                //    .stdout(unsafe { Stdio::from_raw_fd(pair.slave) })
-                .spawn()?;
-
-            let status = child.wait().await?;
-
-            let bin = dirs.target.clone().join("sbin");
-            let sbin = dirs.target.clone().join("sbin");
-
-            if sbin.exists() {
-                println!(
-                    "{} package failed to respect configuration, /sbin exists",
-                    Status::Warning
-                );
-
-                let files: Vec<_> = fs::read_dir(&sbin)?
-                    .flatten()
-                    .map(|entry| entry.path())
-                    .collect();
-
-                fs_extra::move_items(
-                    &files,
-                    bin,
-                    &CopyOptions {
-                        overwrite: false,
-                        skip_exist: true,
-                        buffer_size: 64000,
-                        copy_inside: true,
-                        content_only: false,
-                        depth: 0,
-                    },
-                )?;
-
-                fs::remove_dir_all(&sbin)?;
-            }
-
-            fs::remove_dir_all(&dirs.build)?;
+            self.install
+                .execute(Action::Installing, &self, &dirs)
+                .await?;
 
             Ok(())
-        }
-    }
-
-    #[derive(Debug, Deserialize, Serialize)]
-    pub struct Spec<'spec> {
-        #[serde(borrow)]
-        package: Package<'spec>,
-        #[serde(borrow)]
-        configure: Option<Configure<'spec>>,
-    }
-
-    impl<'spec> Spec<'spec> {
-        pub fn name(&self) -> &'spec str {
-            &self.package.name
-        }
-
-        pub fn github_url(&self) -> String {
-            format!("https://github.com/{}", self.package.source)
-        }
-
-        pub async fn build<'build>(
-            &self,
-            candy: &Candy,
-            triple: &Triple<'build>,
-        ) -> anyhow::Result<()> {
-            let dirs = candy.dirs_of(&self, &triple);
-            let github_url = self.github_url();
-
-            println!("{} {}", Action::Updating, self.name());
-
-            //let pair = pty::openpty(None, None)?;
-
-            let mut child = Command::new("git")
-                .args(&["clone", "--depth=1"])
-                .arg(&github_url)
-                .arg(&dirs.source)
-                .kill_on_drop(true)
-                //    .stderr(unsafe { Stdio::from_raw_fd(pair.slave) })
-                //    .stdout(unsafe { Stdio::from_raw_fd(pair.slave) })
-                .spawn()?;
-
-            let status = child.wait().await?;
-
-            match &self.configure {
-                Some(configure) => configure.configure(&self, &dirs).await,
-                _ => Ok(()),
-            }
         }
     }
 }
@@ -406,7 +355,7 @@ pub mod candy {
         /// Return the source directory of a spec relative to
         /// this instance's root directory
         pub fn source_of(&self, spec: &Spec) -> PathBuf {
-            self.root().join("source").join(spec.name())
+            self.root().join("source").join(spec.package_name())
         }
 
         /// Return the build directory of a spec relative to this
@@ -417,7 +366,7 @@ pub mod candy {
             self.root()
                 .join("build")
                 .join(triple.to_string().unwrap())
-                .join(spec.name())
+                .join(spec.package_name())
         }
 
         /// Return the target directory of a spec relative to this
@@ -427,7 +376,7 @@ pub mod candy {
         pub fn target_of(&self, spec: &Spec, triple: &Triple) -> PathBuf {
             self.root()
                 .join(triple.to_string().unwrap())
-                .join(spec.name())
+                .join(spec.package_name())
         }
 
         /// Shorthand for (source_of, build_of, target_of)
@@ -452,16 +401,16 @@ pub mod candy {
 async fn main() -> anyhow::Result<()> {
     let cmdline = Candy::from_args();
 
-    let mut file = File::open(&cmdline.spec)?;
-    let meta = file.metadata()?;
-    let mut buffy = vec![0; meta.len() as usize];
+    let mut spec = File::open(&cmdline.spec)?;
+    let metnya = spec.metadata()?;
+    let mut buffy = vec![0; metnya.len() as usize];
 
-    file.read(&mut buffy)?;
+    spec.read(&mut buffy)?;
 
     let candy = candy::Candy::new(&"/milk");
-    let spec: spec::Spec<'_> = toml::de::from_slice(&buffy)?;
+    let spec: spec::Spec = serde_yaml::from_slice(&buffy)?;
 
-    spec.build(&candy, &triple::X86_64_UNKNOWN_LINUX_GNU)
+    spec.execute(&candy, &triple::X86_64_UNKNOWN_LINUX_GNU)
         .await?;
 
     Ok(())
