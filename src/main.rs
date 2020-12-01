@@ -208,6 +208,14 @@ pub mod spec {
 
                             fs_extra::copy_items(&[&args[1]], &args[2], &CopyOptions::default())?;
                         }
+                        "@replicate" => {
+                            let entries: Vec<_> = fs::read_dir(&dirs.source)?
+                                .flatten()
+                                .map(|entry| entry.path())
+                                .collect();
+
+                            fs_extra::copy_items(&entries, &dirs.build, &CopyOptions::default())?;
+                        }
                         _ => println!(
                             "{} {} {} {}",
                             Action::Running,
