@@ -96,6 +96,7 @@ pub mod util {
             inner
                 .arg("clone")
                 .arg("--depth=1")
+                .arg("--recursive")
                 .arg(repo.as_ref())
                 .arg(&dest)
                 .current_dir(&dest)
