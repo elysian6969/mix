@@ -133,11 +133,12 @@ pub mod util {
 
 pub mod spec {
     use super::candy::{Candy, Dirs};
-    use super::shell::Action;
+    use super::shell::{Action, Status};
     use super::triple::Triple;
     use super::util::Git;
+    use fs_extra::dir::CopyOptions;
     use serde::{Deserialize, Serialize};
-    use std::fs;
+    use std::{fs, path::Path};
     use tokio::process::Command;
 
     /// defines name, version, sources
@@ -172,9 +173,49 @@ pub mod spec {
 
                 let args = shell_words::split(&action)?;
 
-                if args.len() > 0 {
-                    println!("{} {} {:?}", Action::Running, spec.package.name, &args);
+                if args.len() == 0 {
+                    continue;
+                }
 
+                println!("{} {} {:?}", Action::Running, spec.package.name, &args);
+
+                if args[0].starts_with("@") {
+                    match args[0].as_str() {
+                        "@copy" => {
+                            let src = Path::new(&args[1]);
+                            let dst = Path::new(&args[2]);
+
+                            if !src.exists() {
+                                println!(
+                                    "{} {} {} {}",
+                                    Action::Running,
+                                    spec.package.name,
+                                    Status::Warning,
+                                    "@copy: <source> parameter doesn't exist"
+                                );
+                            }
+
+                            if !dst.exists() {
+                                println!(
+                                    "{} {} {} {}",
+                                    Action::Running,
+                                    spec.package.name,
+                                    Status::Warning,
+                                    "@copy: <destination> parameter doesn't exist"
+                                );
+                            }
+
+                            fs_extra::copy_items(&[&args[1]], &args[2], &CopyOptions::default())?;
+                        }
+                        _ => println!(
+                            "{} {} {} {}",
+                            Action::Running,
+                            spec.package.name,
+                            Status::Warning,
+                            "unknown builtin function"
+                        ),
+                    }
+                } else {
                     let mut child = Command::new(&args[0])
                         .args(&args[1..])
                         .current_dir(&dirs.build)
