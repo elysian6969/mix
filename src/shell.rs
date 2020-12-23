@@ -1,30 +1,29 @@
-
 use crossterm::style::{Colorize, Styler};
 use std::fmt;
 
-/// Action to print to the terminal
+/// current action
 #[derive(Clone, Copy, Debug)]
 pub enum Action {
-    Building,
-    Installing,
-    Preparing,
-    Running,
-    Updating,
+    Fetch,
+    Config,
+    Build,
+    Install,
 }
 
 impl Action {
     pub fn as_str(&self) -> &str {
+        use Action::*;
+
         match self {
-            Action::Building => "building",
-            Action::Installing => "installing",
-            Action::Preparing => "preparing",
-            Action::Running => "running",
-            Action::Updating => "updating",
+            Fetch => "fetch",
+            Config => "config",
+            Build => "build",
+            Install => "install",
         }
     }
 
     pub fn to_display(&self) -> impl fmt::Display {
-        format!("{: >12}", self.as_str().to_owned().green().bold())
+        format!("-> {}", self.as_str().to_owned().dark_green().bold())
     }
 }
 

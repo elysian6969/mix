@@ -25,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
 
     spec.read(&mut buffy)?;
 
-    let candy = watson::Watson::new(&"/milk");
+    let candy = watson::Watson::new(&"/tiramisu");
     let spec: spec::Spec = serde_yaml::from_slice(&buffy)?;
 
     spec.execute(&candy, &triple::X86_64_UNKNOWN_LINUX_GNU)

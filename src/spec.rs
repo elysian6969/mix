@@ -38,7 +38,7 @@ impl Actions {
                 continue;
             }
 
-            println!("{} {} {:?}", Action::Running, spec.package.name, &args);
+            println!("{} {} {:?}", Action::Build, spec.package.name, &args);
 
             if args[0].starts_with("@") {
                 match args[0].as_str() {
@@ -49,7 +49,7 @@ impl Actions {
                         if !src.exists() {
                             println!(
                                 "{} {} {} {}",
-                                Action::Running,
+                                Action::Build,
                                 spec.package.name,
                                 Status::Warning,
                                 "@copy: <source> parameter doesn't exist"
@@ -59,7 +59,7 @@ impl Actions {
                         if !dst.exists() {
                             println!(
                                 "{} {} {} {}",
-                                Action::Running,
+                                Action::Build,
                                 spec.package.name,
                                 Status::Warning,
                                 "@copy: <destination> parameter doesn't exist"
@@ -78,7 +78,7 @@ impl Actions {
                     }
                     _ => println!(
                         "{} {} {} {}",
-                        Action::Running,
+                        Action::Build,
                         spec.package.name,
                         Status::Warning,
                         "unknown builtin function"
@@ -86,6 +86,8 @@ impl Actions {
                 }
             } else {
                 let mut child = Command::new(&args[0])
+                    .env("TERM", "linux")
+                    .env("LANG", "C.UTF-8")
                     .args(&args[1..])
                     .current_dir(&dirs.build)
                     .spawn()?;
@@ -115,7 +117,7 @@ impl Spec {
         let dirs = candy.dirs_of(&self, &triple);
         let source = format!("https://github.com/{}", &self.package.source);
 
-        println!("{} {}", Action::Updating, &self.package.name);
+        println!("{} {}", Action::Fetch, &self.package.name);
 
         let mut git = Git::clone(source, &dirs.source);
 
@@ -131,11 +133,9 @@ impl Spec {
 
         fs::create_dir_all(&dirs.build)?;
 
-        self.prepare
-            .execute(Action::Preparing, &self, &dirs)
-            .await?;
+        self.prepare.execute(Action::Config, &self, &dirs).await?;
 
-        self.build.execute(Action::Building, &self, &dirs).await?;
+        self.build.execute(Action::Build, &self, &dirs).await?;
 
         if dirs.target.exists() {
             fs::remove_dir_all(&dirs.target)?;
@@ -143,9 +143,7 @@ impl Spec {
 
         fs::create_dir_all(&dirs.target)?;
 
-        self.install
-            .execute(Action::Installing, &self, &dirs)
-            .await?;
+        self.install.execute(Action::Install, &self, &dirs).await?;
 
         if dirs.build.exists() {
             fs::remove_dir_all(&dirs.build)?;
