@@ -1,11 +1,16 @@
-use super::shell::{Action, Status};
-use super::triple::Triple;
-use super::util::Git;
-use super::watson::{Dirs, Watson};
-use fs_extra::dir::CopyOptions;
-use serde::{Deserialize, Serialize};
-use std::{fs, path::Path};
-use tokio::process::Command;
+use {
+    super::{
+        config::Config,
+        delete_on_drop::DeleteOnDrop,
+        shell::{Action, Status},
+        triple::Triple,
+        util::Git,
+    },
+    fs_extra::dir::CopyOptions,
+    serde::{Deserialize, Serialize},
+    std::{fs, path::Path},
+    tokio::process::Command,
+};
 
 /// defines name, version, sources
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -100,55 +105,17 @@ impl Actions {
     }
 }
 
-// package spec
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Spec {
-    pub package: Package,
-    #[serde(default)]
-    pub prepare: Actions,
-    #[serde(default)]
-    pub build: Actions,
-    #[serde(default)]
-    pub install: Actions,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Script {
+    pub name: String,
+    pub version: Version,
+    pub source: String,
+    pub configure: Option<Vec<String>>,
+    pub make: Option<Vec<String>>,
 }
 
-impl Spec {
-    pub async fn execute(&self, candy: &Watson, triple: &Triple<'_>) -> anyhow::Result<()> {
-        let dirs = candy.dirs_of(&self, &triple);
-        let source = format!("https://github.com/{}", &self.package.source);
+pub async fn build(script: &Script, triple: &Triple, instance: &Instance) -> anyhow::Result<()> {
+    //let build_dir = DeleteOnDrop::new();
 
-        println!("{} {}", Action::Fetch, &self.package.name);
-
-        let mut git = Git::clone(source, &dirs.source);
-
-        if let Some(branch) = self.package.branch.as_ref() {
-            git.branch(branch);
-        }
-
-        git.execute().await?;
-
-        if dirs.build.exists() {
-            fs::remove_dir_all(&dirs.build)?;
-        }
-
-        fs::create_dir_all(&dirs.build)?;
-
-        self.prepare.execute(Action::Config, &self, &dirs).await?;
-
-        self.build.execute(Action::Build, &self, &dirs).await?;
-
-        if dirs.target.exists() {
-            fs::remove_dir_all(&dirs.target)?;
-        }
-
-        fs::create_dir_all(&dirs.target)?;
-
-        self.install.execute(Action::Install, &self, &dirs).await?;
-
-        if dirs.build.exists() {
-            fs::remove_dir_all(&dirs.build)?;
-        }
-
-        Ok(())
-    }
+    Ok(())
 }

@@ -1,80 +1,85 @@
-#[derive(Clone, Copy, Debug)]
-pub struct Triple<'triple> {
-    arch: &'triple str,
-    vendor: Option<&'triple str>,
-    sys: Option<&'triple str>,
-    abi: Option<&'triple str>,
+use std::fmt;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Triple {
+    pub architecture: &'static str,
+    pub vendor: &'static str,
+    pub system: &'static str,
+    pub interface: &'static str,
 }
 
-impl<'triple> Triple<'triple> {
-    /// Create new target triple with the specified architecture
-    pub const fn new(arch: &'triple str) -> Self {
+impl Triple {
+    /// Create new triple
+    pub const fn new(architecture: &'static str) -> Self {
         Self {
-            arch,
-            vendor: None,
-            sys: None,
-            abi: None,
+            architecture,
+            vendor: "",
+            system: "",
+            interface: "",
         }
     }
 
-    /// Specify the vendor
-    pub const fn vendor(mut self, vendor: &'triple str) -> Self {
-        self.vendor = Some(vendor);
+    /// Create new AArch64 triple
+    pub const fn aarch64() -> Self {
+        Self::new("aarch64")
+    }
+
+    /// Create new x86_64 triple
+    pub const fn x86_64() -> Self {
+        Self::new("x86_64")
+    }
+
+    /// Set vendor
+    pub const fn vendor(mut self, vendor: &'static str) -> Self {
+        self.vendor = vendor;
         self
     }
 
-    /// Specify the system
-    pub const fn sys(mut self, sys: &'triple str) -> Self {
-        self.sys = Some(sys);
+    /// Set system
+    pub const fn system(mut self, system: &'static str) -> Self {
+        self.system = system;
         self
     }
 
-    /// Specify the ABI
-    pub const fn abi(mut self, abi: &'triple str) -> Self {
-        self.abi = Some(abi);
-        self
-    }
-
-    /// Set the system to linux
+    /// Set system to Linux
     pub const fn linux(self) -> Self {
-        self.sys("linux")
+        self.system("linux")
     }
 
-    /// Set the ABI to GNU
+    /// Set ABI
+    pub const fn interface(mut self, interface: &'static str) -> Self {
+        self.interface = interface;
+        self
+    }
+
+    /// Set ABI to GNU
     pub const fn gnu(self) -> Self {
-        self.abi("gnu")
+        self.interface("gnu")
     }
 
-    /// Set the ABI to musl
+    /// Set ABI to musl
     pub const fn musl(self) -> Self {
-        self.abi("musl")
-    }
-
-    pub fn to_string(&self) -> Option<String> {
-        match &self {
-            Triple {
-                arch,
-                vendor: Some(vendor),
-                sys: Some(sys),
-                abi: Some(abi),
-            } => Some(format!("{}-{}-{}-{}", arch, vendor, sys, abi)),
-            Triple {
-                arch,
-                vendor: None,
-                sys: Some(sys),
-                abi: Some(abi),
-            } => Some(format!("{}-unknown-{}-{}", arch, sys, abi)),
-            _ => None,
-        }
+        self.interface("musl")
     }
 }
 
-/// aarch64-unknown-linux-gnu
-pub const AARCH64_UNKNOWN_LINUX_GNU: Triple<'static> = Triple::new("aarch64").linux().gnu();
-/// aarch64-unknown-linux-musl
-pub const AARCH64_UNKNOWN_LINUX_MUSL: Triple<'static> = Triple::new("aarch64").linux().musl();
+impl fmt::Display for Triple {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fn unknown_if_empty(string: &str) -> &str {
+            if string.is_empty() {
+                "unknown"
+            } else {
+                string
+            }
+        }
 
-/// x86_64-unknown-linux-gnu
-pub const X86_64_UNKNOWN_LINUX_GNU: Triple<'static> = Triple::new("x86_64").linux().gnu();
-/// x86_64-unknown-linux-musl
-pub const X86_64_UNKNOWN_LINUX_MUSL: Triple<'static> = Triple::new("x86_64").linux().musl();
+        write!(
+            f,
+            "{}-{}-{}-{}",
+            unknown_if_empty(self.architecture),
+            unknown_if_empty(self.vendor),
+            unknown_if_empty(self.system),
+            unknown_if_empty(self.interface),
+        )
+    }
+}
