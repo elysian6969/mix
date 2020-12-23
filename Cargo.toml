@@ -1,16 +1,16 @@
 [package]
-name    = "candy"
+name    = "mochi"
 version = "0.0.0"
 authors = ["kalmari"]
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0"
-crossterm = "0.18"
-fs_extra = "1.2"
-nix = "0.19"
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.8"
+anyhow      = "1.0"
+clap        = "3.0.0-beta.2"
+crossterm   = "0.18"
+fs_extra    = "1.2"
+nix         = "0.19"
+serde       = { version = "1.0", features = ["derive"] }
+serde_yaml  = "0.8"
 shell-words = "1.0"
-structopt = "0.3"
-tokio = { version = "0.3", features = ["macros", "process", "rt-multi-thread"] }
+tokio       = { version = "0.3", features = ["full"] }
