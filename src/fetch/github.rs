@@ -1,7 +1,8 @@
 use {
-    reqwest::{header, Client},
+    super::client::Client,
     serde::Deserialize,
-    std::{collections::HashMap, path::PathBuf},
+    hashbrown::HashMap,
+    std::path::PathBuf,
     url::Url,
 };
 
@@ -19,21 +20,19 @@ pub struct Commit {
     pub url: Url,
 }
 
-pub async fn fetch_github_tags(user: &str, repo: &str) -> anyhow::Result<HashMap<String, Tag>> {
+pub async fn fetch_github_tags(
+    client: &Client,
+    name: impl AsRef<str>,
+    user: impl AsRef<str>,
+    repo: impl AsRef<str>,
+) -> anyhow::Result<HashMap<String, Tag>> {
+    let name = name.as_ref();
+    let user = user.as_ref();
+    let repo = repo.as_ref();
     let url = format!("https://api.github.com/repos/{}/{}/tags", &user, &repo);
-
-    let text: String = Client::new()
-        .get(&url)
-        .header(
-            header::USER_AGENT,
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")),
-        )
-        .send()
-        .await?
-        .text()
-        .await?;
-
-    println!("{}", &text);
+    let bytes = client.get(&name, url.as_str()).await?;
+    
+    dbg!(&url);
 
     Ok(HashMap::new())
 
@@ -60,16 +59,23 @@ pub struct Object {
     pub url: Url,
 }
 
-pub async fn fetch_github_refs(user: &str, repo: &str) -> anyhow::Result<HashMap<String, Ref>> {
-    let tags: Vec<Ref> = reqwest::get(&format!(
-        "https://api.github.com/{}/{}/git/refs/tags",
-        &user, &repo
-    ))
-    .await?
-    .json()
-    .await?;
+pub async fn fetch_github_refs(
+    client: &Client,
+    name: impl AsRef<str>,
+    user: impl AsRef<str>,
+    repo: impl AsRef<str>,
+) -> anyhow::Result<HashMap<String, Ref>> {
+    let name = name.as_ref();
+    let user = user.as_ref();
+    let repo = repo.as_ref();
+    let url = format!("https://api.github.com/repos/{}/{}/git/refs/tags", &user, &repo);
+    let bytes = client.get(&name, url.as_str()).await?;
+    
+    dbg!(&url);
 
-    Ok(tags
+    Ok(HashMap::new())
+
+    /*Ok(tags
         .into_iter()
         .flat_map(|tag| {
             Some((
@@ -77,5 +83,5 @@ pub async fn fetch_github_refs(user: &str, repo: &str) -> anyhow::Result<HashMap
                 tag,
             ))
         })
-        .collect())
+        .collect())*/
 }

@@ -1,10 +1,9 @@
 use {
-    self::{config::Config, triple::Triple},
+    self::{config::Config, fetch::Client, triple::Triple},
     clap::Clap,
     std::{fs::File, path::PathBuf},
 };
 
-pub mod client;
 pub mod config;
 pub mod delete_on_drop;
 pub mod fetch;
@@ -23,7 +22,7 @@ pub struct Build {
 
 pub mod build {
     use {
-        super::{config::Config, triple::Triple},
+        super::{config::Config, fetch::Client, triple::Triple},
         semver::Version,
         serde::Deserialize,
         std::path::PathBuf,
@@ -43,11 +42,19 @@ pub mod build {
         script: &Script,
         config: &Config,
         triple: &Triple,
+        client: &Client,
     ) -> anyhow::Result<()> {
         println!("path: {:?}", &path);
         println!("script: {:?}", &script);
         println!("config: {:?}", &config);
         println!("triple: {:?}", &triple);
+
+        let name = path
+            .file_stem()
+            .and_then(|string| string.to_str())
+            .ok_or_else(|| anyhow::anyhow!("invalid name"))?;
+        let version = &script.version;
+        let combined = format!("{}-{}", name, version);
 
         for source in &script.source {
             match source.scheme() {
@@ -62,7 +69,12 @@ pub mod build {
                         .next()
                         .ok_or_else(|| anyhow::anyhow!("invalid github repo"))?;
 
-                    let available = crate::fetch::github::fetch_github_tags(&user, &repo).await?;
+                    let available = crate::fetch::github::fetch_github_tags(
+                        &client,
+                        &combined, 
+                        &user,
+                        &repo
+                    ).await?;
 
                     println!("available: {:?}", &available);
                 }
@@ -74,18 +86,31 @@ pub mod build {
     }
 }
 
+#[cfg(target_arch = "aarch64")]
+pub fn default_triple() -> Triple {
+    Triple::aarch64().linux().gnu()
+}
+
+#[cfg(target_arch = "x86_64")]
+pub fn default_triple() -> Triple {
+    Triple::x86_64().linux().gnu()
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let config = Config::with_prefix("/tiramisu");
-    let target = Triple::x86_64().linux().gnu();
+    let target = default_triple();
+    let client = Client::with_cache("/tiramisu/cache")?;
 
     match &args {
         Args::Build(build) => {
             for package in &build.packages {
                 let script = File::open(&package).map(serde_yaml::from_reader)??;
 
-                build::build(&package, &script, &config, &target).await?;
+                build::build(
+                    &package, &script, &config, &target,
+                    &client).await?;
             }
         }
     }
