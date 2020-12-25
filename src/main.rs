@@ -4,6 +4,7 @@ use {
     std::{fs::File, path::PathBuf},
 };
 
+pub mod client;
 pub mod config;
 pub mod delete_on_drop;
 pub mod fetch;
