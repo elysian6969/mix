@@ -10,12 +10,13 @@ clap        = "3.0.0-beta.2"
 crossterm   = "0.18.2"
 fs_extra    = "1.2.0"
 nix         = "0.19.1"
-reqwest     = { version = "0.10.10", features = ["rustls"], default-features = false }
+reqwest     = { version = "0.10.10", features = ["json", "rustls-tls"], default-features = false }
 semver      = { version = "0.11.0", features = ["serde"] }
 serde       = { version = "1.0.118", features = ["derive"] }
 serde_yaml  = "0.8.14"
 shell-words = "1.0.0"
 tar         = "0.4.30"
 thiserror   = "1.0.22"
-tokio       = { version = "0.3.6", features = ["full"] }
+tokio       = { version = "0.2.24", features = ["full"] }
+url         = { version = "2.2.0", features = ["serde"] }
 zstd        = "0.6.0"

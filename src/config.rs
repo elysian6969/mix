@@ -4,6 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(Debug)]
 pub struct Config {
     prefix: PathBuf,
 

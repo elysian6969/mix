@@ -1,20 +1,23 @@
 use {
     self::{config::Config, triple::Triple},
     clap::Clap,
-    std::{fs::File, io::Read, path::PathBuf},
+    std::{fs::File, path::PathBuf},
 };
 
 pub mod config;
 pub mod delete_on_drop;
-//pub mod shell;
-//pub mod spec;
+pub mod fetch;
 pub mod triple;
-//pub mod util;
 
 #[derive(Clap, Debug)]
-pub struct Args {
+pub enum Args {
+    Build(Build),
+}
+
+#[derive(Clap, Debug)]
+pub struct Build {
     #[clap(parse(from_os_str))]
-    path: PathBuf,
+    packages: Vec<PathBuf>,
 }
 
 pub mod build {
@@ -22,38 +25,51 @@ pub mod build {
         super::{config::Config, triple::Triple},
         semver::Version,
         serde::Deserialize,
+        std::path::PathBuf,
+        url::Url,
     };
 
     #[derive(Debug, Deserialize)]
-    pub struct RawScript {
-        pub name: String,
-        pub version: Version,
-        pub source: Option<Vec<String>>,
-        pub configure: Option<Vec<String>>,
-        pub make: Option<Vec<String>>,
-    }
-
-    #[derive(Debug)]
     pub struct Script {
-        pub name: String,
         pub version: Version,
-        pub source: Option<Vec<String>>,
+        pub source: Vec<Url>,
         pub configure: Option<Vec<String>>,
         pub make: Option<Vec<String>>,
     }
 
-    impl RawScript {
-        pub fn preprocess(self, config: &Config, triple: &Triple) -> anyhow::Result<Script> {
-            println!("{:#?}", &self);
+    pub async fn build(
+        path: &PathBuf,
+        script: &Script,
+        config: &Config,
+        triple: &Triple,
+    ) -> anyhow::Result<()> {
+        println!("path: {:?}", &path);
+        println!("script: {:?}", &script);
+        println!("config: {:?}", &config);
+        println!("triple: {:?}", &triple);
 
-            Ok(Script {
-                name: self.name,
-                version: self.version,
-                source: self.source,
-                configure: self.configure,
-                make: self.make,
-            })
+        for source in &script.source {
+            match source.scheme() {
+                "github" => {
+                    let mut segments = source.path().split('/');
+
+                    let user = segments
+                        .next()
+                        .ok_or_else(|| anyhow::anyhow!("invalid github user"))?;
+
+                    let repo = segments
+                        .next()
+                        .ok_or_else(|| anyhow::anyhow!("invalid github repo"))?;
+
+                    let available = crate::fetch::github::fetch_github_tags(&user, &repo).await?;
+
+                    println!("available: {:?}", &available);
+                }
+                _ => Err(anyhow::anyhow!("invalid source"))?,
+            }
         }
+
+        Ok(())
     }
 }
 
@@ -62,10 +78,16 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let config = Config::with_prefix("/tiramisu");
     let target = Triple::x86_64().linux().gnu();
-    let raw_script: build::RawScript = File::open(args.path).map(serde_yaml::from_reader)??;
-    let script = raw_script.preprocess(&config, &target)?;
 
-    println!("{:#?}", &script);
+    match &args {
+        Args::Build(build) => {
+            for package in &build.packages {
+                let script = File::open(&package).map(serde_yaml::from_reader)??;
+
+                build::build(&package, &script, &config, &target).await?;
+            }
+        }
+    }
 
     Ok(())
 }
