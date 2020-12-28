@@ -23,36 +23,11 @@ pub struct Build {
 pub mod build {
     use {
         super::{config::Config, fetch::Client, triple::Triple},
-        semver::{Identifier, Version},
+        semver::{AlphaNumeric, Version},
         serde::Deserialize,
-        std::path::PathBuf,
+        std::{collections::BTreeMap, path::PathBuf},
         url::Url,
     };
-
-    pub fn parse_version(input: &str) -> Version {
-        let mut split = input.split('.');
-
-        let major = split
-            .next()
-            .map(|part| part.parse())
-            .unwrap_or(Ok(0))
-            .unwrap_or(0);
-
-        let minor = split
-            .next()
-            .map(|part| part.parse())
-            .unwrap_or(Ok(0))
-            .unwrap_or(0);
-
-        let major = split
-            .next()
-            .map(|part| part.parse())
-            .unwrap_or(Ok(0))
-            .unwrap_or(0);
-
-        split.next().parse().unwrap_or(0);
-        split.next().parse().unwrap_or(0);
-    }
 
     #[derive(Debug, Deserialize)]
     pub struct Script {
@@ -78,6 +53,7 @@ pub mod build {
             .file_stem()
             .and_then(|string| string.to_str())
             .ok_or_else(|| anyhow::anyhow!("invalid name"))?;
+
         let version = &script.version;
         let combined = format!("{}-{}", name, version);
 
@@ -94,14 +70,14 @@ pub mod build {
                         .next()
                         .ok_or_else(|| anyhow::anyhow!("invalid github repo"))?;
 
-                    let available =
+                    let avail =
                         crate::fetch::github::fetch_github_tags(&client, &combined, &user, &repo)
                             .await?;
 
-                    for (name, tag) in available {
-                        let version = parse_version(&name);
+                    let avail: BTreeMap<_, _> = avail.into_iter().collect();
 
-                        println!("version: {:?}", &version);
+                    for (version, tag) in avail {
+                        println!("{} {}", &version, &tag.name);
                     }
                 }
                 _ => Err(anyhow::anyhow!("invalid source"))?,
