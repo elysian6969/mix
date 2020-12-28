@@ -13,6 +13,7 @@ crossterm   = "0.18.2"
 fs_extra    = "1.2.0"
 futures     = "0.3.8"
 hashbrown   = "0.9.1"
+multimap    = "0.8.2"
 nix         = "0.19.1"
 reqwest     = { version = "0.10.10", features = ["brotli", "gzip", "json", "rustls-tls", "stream"], default-features = false }
 semver      = { version = "0.11.0", features = ["serde"] }
@@ -24,4 +25,5 @@ tar         = "0.4.30"
 thiserror   = "1.0.22"
 tokio       = { version = "0.2.24", features = ["full"] }
 url         = { version = "2.2.0", features = ["serde"] }
+walkdir     = "2.3.1"
 zstd        = "0.6.0"

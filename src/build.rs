@@ -1,10 +1,14 @@
 use {
-    super::{config::Config, fetch::Client, triple::Triple},
+    super::{config::Config, delete_on_drop::DeleteOnDrop, fetch::Client, triple::Triple},
     crossterm::style::{Colorize, Styler},
+    hashbrown::HashMap,
+    multimap::MultiMap,
     semver::Version,
     serde::Deserialize,
     std::{collections::BTreeMap, path::PathBuf},
+    tokio::{fs, process::Command},
     url::Url,
+    walkdir::{DirEntry, WalkDir},
 };
 
 #[derive(Debug, Deserialize)]
@@ -17,8 +21,8 @@ pub struct Script {
 pub async fn build(
     path: &PathBuf,
     script: &Script,
-    _config: &Config,
-    _triple: &Triple,
+    config: &Config,
+    triple: &Triple,
     client: &Client,
     current_version: &Version,
 ) -> anyhow::Result<()> {
@@ -57,11 +61,96 @@ pub async fn build(
                         );
                 }
 
-                let tarball = format!("{}-{}.tar.xz", &name, &latest_version);
+                let combined = format!("{}-{}", &name, &latest_version);
+                let tarball = format!("{}.tar.xz", &combined);
 
                 client
                     .get_partial(&name, &tarball, &latest.tarball_url)
                     .await?;
+
+                let build_dir = config.build().join(&combined);
+
+                if build_dir.exists() {
+                    println!(
+                        "{}: skipping this package, it's being built by another instance",
+                        &combined
+                    );
+
+                    return Ok(());
+                }
+
+                fs::create_dir_all(&build_dir).await?;
+
+                let _guard = DeleteOnDrop::new(&build_dir);
+                let full_tarball_path = client.cache().join(&name).join(&tarball);
+
+                Command::new("tar")
+                    .current_dir(&build_dir)
+                    .arg("pxf")
+                    .arg(&full_tarball_path)
+                    .spawn()?
+                    .await?;
+
+                let entries: MultiMap<String, DirEntry> = WalkDir::new(&build_dir)
+                    .into_iter()
+                    .flat_map(|entry| {
+                        let entry = entry.ok()?;
+                        let file_name = entry.path().file_name()?.to_str()?;
+
+                        Some((file_name.to_string(), entry))
+                    })
+                    .collect();
+
+                if let Some(configures) = entries.get_vec("configure") {
+                    let roots: HashMap<_, _> = configures
+                        .iter()
+                        .flat_map(|path| Some((path.path().parent()?, path)))
+                        .collect();
+
+                    let (root, configure) = roots.iter().next().unwrap();
+
+                    Command::new(configure.path())
+                        .arg(format!(
+                            "--prefix={}",
+                            config
+                                .prefix()
+                                .join(triple.to_string())
+                                .join(&combined)
+                                .display()
+                        ))
+                        .current_dir(&root)
+                        .env_clear()
+                        .env("CFLAGS", "-Ofast -march=znver2 -pipe")
+                        .env("CXXFLAGS", "-Ofast -march=znver2 -pipe")
+                        .env("LANG", "C.UTF-8")
+                        .env("PATH", "/bin:/sbin")
+                        .env("TERM", "linux")
+                        .spawn()?
+                        .await?;
+
+                    Command::new("make")
+                        .current_dir(&root)
+                        .env_clear()
+                        .env("CFLAGS", "-Ofast -march=znver2 -pipe")
+                        .env("CXXFLAGS", "-Ofast -march=znver2 -pipe")
+                        .env("LANG", "C.UTF-8")
+                        .env("PATH", "/bin:/sbin")
+                        .env("TERM", "linux")
+                        .spawn()?
+                        .await?;
+
+                    Command::new("make")
+                        .arg("install")
+                        .current_dir(&root)
+                        .env_clear()
+                        .env("CFLAGS", "-Ofast -march=znver2 -pipe")
+                        .env("CXXFLAGS", "-Ofast -march=znver2 -pipe")
+                        .env("LANG", "C.UTF-8")
+                        .env("PATH", "/bin:/sbin")
+                        .env("TERM", "linux")
+                        .spawn()?
+                        .await?;
+                }
             }
             _ => Err(anyhow::anyhow!("invalid source"))?,
         }

@@ -1,12 +1,17 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 pub struct DeleteOnDrop {
     path: PathBuf,
 }
 
 impl DeleteOnDrop {
-    pub fn new(path: impl Into<PathBuf>) -> DeleteOnDrop {
-        Self { path: path.into() }
+    pub fn new(path: impl AsRef<Path>) -> DeleteOnDrop {
+        Self {
+            path: path.as_ref().to_path_buf(),
+        }
     }
 }
 

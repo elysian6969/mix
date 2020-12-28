@@ -5,6 +5,7 @@ use {
     futures::stream::StreamExt,
     reqwest::ClientBuilder,
     std::{
+        borrow::Cow,
         io::Write,
         path::{Path, PathBuf},
         time::Instant,
@@ -28,6 +29,10 @@ impl Client {
         let cache = path.as_ref().to_path_buf();
 
         Ok(Client { inner, cache })
+    }
+
+    pub fn cache(&self) -> Cow<Path> {
+        Cow::from(&self.cache)
     }
 
     pub async fn get(
