@@ -83,21 +83,11 @@ pub mod build {
     }
 }
 
-#[cfg(target_arch = "aarch64")]
-pub fn default_triple() -> Triple {
-    Triple::aarch64().linux().gnu()
-}
-
-#[cfg(target_arch = "x86_64")]
-pub fn default_triple() -> Triple {
-    Triple::x86_64().linux().gnu()
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let config = Config::with_prefix("/tiramisu");
-    let target = default_triple();
+    let target = Triple::default();
     let client = Client::with_cache("/tiramisu/cache")?;
 
     match &args {

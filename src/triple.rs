@@ -61,6 +61,16 @@ impl Triple {
     pub const fn musl(self) -> Self {
         self.interface("musl")
     }
+
+    #[cfg(target_arch = "aarch64")]
+    pub fn default() -> Self {
+        Triple::aarch64().linux().gnu()
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    pub fn default() -> Self {
+        Triple::x86_64().linux().gnu()
+    }
 }
 
 impl fmt::Display for Triple {
