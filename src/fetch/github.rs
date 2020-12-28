@@ -25,7 +25,6 @@ pub async fn fetch_github_tags(
     let repo = repo.as_ref();
     let url = format!("https://api.github.com/repos/{}/{}/tags", &user, &repo);
     let bytes = client.get(&name, "tags.json", url.as_str()).await?;
-
     let tags: Vec<Tag> = serde_json::from_slice(&bytes)?;
 
     Ok(tags
@@ -63,8 +62,8 @@ pub async fn fetch_github_refs(
         "https://api.github.com/repos/{}/{}/git/refs/tags",
         &user, &repo
     );
-    let bytes = client.get(&name, "refs.json", url.as_str()).await?;
 
+    let bytes = client.get(&name, "refs.json", url.as_str()).await?;
     let refs: Vec<Ref> = serde_json::from_slice(&bytes)?;
 
     Ok(refs

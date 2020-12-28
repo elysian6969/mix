@@ -1,12 +1,8 @@
 use {
     bytes::Bytes,
     reqwest::ClientBuilder,
-    std::{
-        hash::Hasher,
-        path::{Path, PathBuf},
-    },
+    std::path::{Path, PathBuf},
     tokio::fs,
-    url::Url,
 };
 
 pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));

@@ -69,12 +69,9 @@ pub mod build {
                         .next()
                         .ok_or_else(|| anyhow::anyhow!("invalid github repo"))?;
 
-                    let available = crate::fetch::github::fetch_github_tags(
-                        &client,
-                        &combined, 
-                        &user,
-                        &repo
-                    ).await?;
+                    let available =
+                        crate::fetch::github::fetch_github_tags(&client, &combined, &user, &repo)
+                            .await?;
 
                     println!("available: {:?}", &available);
                 }
@@ -108,9 +105,7 @@ async fn main() -> anyhow::Result<()> {
             for package in &build.packages {
                 let script = File::open(&package).map(serde_yaml::from_reader)??;
 
-                build::build(
-                    &package, &script, &config, &target,
-                    &client).await?;
+                build::build(&package, &script, &config, &target, &client).await?;
             }
         }
     }
