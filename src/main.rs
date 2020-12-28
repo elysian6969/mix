@@ -69,7 +69,7 @@ pub mod build {
                             .await?;
 
                     let avail: BTreeMap<_, _> = avail.into_iter().collect();
-                    let (latest_version, _) = avail.iter().rev().next().unwrap();
+                    let (latest_version, latest) = avail.iter().rev().next().unwrap();
 
                     if latest_version > &current_version {
                         println!(
@@ -81,6 +81,11 @@ pub mod build {
                             package = name.bold(),
                         );
                     }
+
+                    let tarball = format!("{}-{}.tar.xz", &name, &latest_version);
+                    let bytes = client
+                        .get_partial(&name, &tarball, &latest.tarball_url)
+                        .await;
                 }
                 _ => Err(anyhow::anyhow!("invalid source"))?,
             }
