@@ -116,7 +116,7 @@ impl Client {
                             .flush()?;
                     }
 
-                    let mut bytes = &bytes[..];
+                    let bytes = &bytes[..];
 
                     file.write_all(&bytes).await?;
                 }
