@@ -68,6 +68,14 @@ pub async fn build(
                     .get_partial(&name, &tarball, &latest.tarball_url)
                     .await?;
 
+                let target_dir = config.prefix().join(triple.to_string()).join(&combined);
+
+                if target_dir.exists() {
+                    println!("{}: already installed", &combined);
+
+                    return Ok(());
+                }
+
                 let build_dir = config.build().join(&combined);
 
                 if build_dir.exists() {
