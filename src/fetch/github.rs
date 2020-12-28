@@ -1,10 +1,4 @@
-use {
-    super::client::Client,
-    serde::Deserialize,
-    hashbrown::HashMap,
-    std::path::PathBuf,
-    url::Url,
-};
+use {super::client::Client, hashbrown::HashMap, serde::Deserialize, std::path::PathBuf, url::Url};
 
 #[derive(Debug, Deserialize)]
 pub struct Tag {
@@ -30,17 +24,14 @@ pub async fn fetch_github_tags(
     let user = user.as_ref();
     let repo = repo.as_ref();
     let url = format!("https://api.github.com/repos/{}/{}/tags", &user, &repo);
-    let bytes = client.get(&name, url.as_str()).await?;
-    
-    dbg!(&url);
+    let bytes = client.get(&name, "tags.json", url.as_str()).await?;
 
-    Ok(HashMap::new())
+    let tags: Vec<Tag> = serde_json::from_slice(&bytes)?;
 
-    /*
     Ok(tags
         .into_iter()
         .map(|tag| (tag.name.clone(), tag))
-        .collect())*/
+        .collect())
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,24 +55,20 @@ pub async fn fetch_github_refs(
     name: impl AsRef<str>,
     user: impl AsRef<str>,
     repo: impl AsRef<str>,
-) -> anyhow::Result<HashMap<String, Ref>> {
+) -> anyhow::Result<HashMap<PathBuf, Ref>> {
     let name = name.as_ref();
     let user = user.as_ref();
     let repo = repo.as_ref();
-    let url = format!("https://api.github.com/repos/{}/{}/git/refs/tags", &user, &repo);
-    let bytes = client.get(&name, url.as_str()).await?;
-    
-    dbg!(&url);
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/git/refs/tags",
+        &user, &repo
+    );
+    let bytes = client.get(&name, "refs.json", url.as_str()).await?;
 
-    Ok(HashMap::new())
+    let refs: Vec<Ref> = serde_json::from_slice(&bytes)?;
 
-    /*Ok(tags
+    Ok(refs
         .into_iter()
-        .flat_map(|tag| {
-            Some((
-                tag.reference.file_name()?.to_string_lossy().to_string(),
-                tag,
-            ))
-        })
-        .collect())*/
+        .map(|reference| (reference.reference.clone(), reference))
+        .collect())
 }
