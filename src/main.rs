@@ -1,6 +1,7 @@
 use {
     self::{config::Config, fetch::Client, triple::Triple},
     clap::Clap,
+    semver::Version,
     std::{fs::File, iter, path::PathBuf},
 };
 
@@ -23,7 +24,8 @@ pub struct Build {
 pub mod build {
     use {
         super::{config::Config, fetch::Client, triple::Triple},
-        semver::{AlphaNumeric, Version},
+        crossterm::style::{Colorize, Styler},
+        semver::Version,
         serde::Deserialize,
         std::{collections::BTreeMap, path::PathBuf},
         url::Url,
@@ -31,7 +33,6 @@ pub mod build {
 
     #[derive(Debug, Deserialize)]
     pub struct Script {
-        pub version: Version,
         pub source: Vec<Url>,
         pub configure: Option<Vec<String>>,
         pub make: Option<Vec<String>>,
@@ -43,19 +44,12 @@ pub mod build {
         config: &Config,
         triple: &Triple,
         client: &Client,
+        current_version: &Version,
     ) -> anyhow::Result<()> {
-        println!("path: {:?}", &path);
-        println!("script: {:?}", &script);
-        println!("config: {:?}", &config);
-        println!("triple: {:?}", &triple);
-
         let name = path
             .file_stem()
             .and_then(|string| string.to_str())
             .ok_or_else(|| anyhow::anyhow!("invalid name"))?;
-
-        let version = &script.version;
-        let combined = format!("{}-{}", name, version);
 
         for source in &script.source {
             match source.scheme() {
@@ -71,13 +65,21 @@ pub mod build {
                         .ok_or_else(|| anyhow::anyhow!("invalid github repo"))?;
 
                     let avail =
-                        crate::fetch::github::fetch_github_tags(&client, &combined, &user, &repo)
+                        crate::fetch::github::fetch_github_tags(&client, &name, &user, &repo)
                             .await?;
 
                     let avail: BTreeMap<_, _> = avail.into_iter().collect();
+                    let (latest_version, _) = avail.iter().rev().next().unwrap();
 
-                    for (version, tag) in avail {
-                        println!("{} {}", &version, &tag.name);
+                    if latest_version > &current_version {
+                        println!(
+                            "{package}{colon} update available {current_version} {arrow} {latest_version}",
+                            arrow = "->".bold(),
+                            colon = ":".bold(),
+                            current_version = current_version.to_string().dark_red().bold(),
+                            latest_version = latest_version.to_string().dark_green().bold(),
+                            package = name.bold(),
+                        );
                     }
                 }
                 _ => Err(anyhow::anyhow!("invalid source"))?,
@@ -93,6 +95,7 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let config = Config::new("/tiramisu", iter::once(Triple::default()));
     let client = Client::with_cache("/tiramisu/cache")?;
+    let current_version = Version::parse("5.0.0")?;
 
     match &args {
         Args::Build(build) => {
@@ -100,7 +103,15 @@ async fn main() -> anyhow::Result<()> {
                 let script = File::open(&package).map(serde_yaml::from_reader)??;
 
                 for target in config.targets() {
-                    build::build(&package, &script, &config, &target, &client).await?;
+                    build::build(
+                        &package,
+                        &script,
+                        &config,
+                        &target,
+                        &client,
+                        &current_version,
+                    )
+                    .await?;
                 }
             }
         }
