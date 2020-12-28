@@ -1,7 +1,7 @@
 use {
     self::{config::Config, fetch::Client, triple::Triple},
     clap::Clap,
-    std::{fs::File, path::PathBuf},
+    std::{fs::File, iter, path::PathBuf},
 };
 
 pub mod config;
@@ -23,11 +23,36 @@ pub struct Build {
 pub mod build {
     use {
         super::{config::Config, fetch::Client, triple::Triple},
-        semver::Version,
+        semver::{Identifier, Version},
         serde::Deserialize,
         std::path::PathBuf,
         url::Url,
     };
+
+    pub fn parse_version(input: &str) -> Version {
+        let mut split = input.split('.');
+
+        let major = split
+            .next()
+            .map(|part| part.parse())
+            .unwrap_or(Ok(0))
+            .unwrap_or(0);
+
+        let minor = split
+            .next()
+            .map(|part| part.parse())
+            .unwrap_or(Ok(0))
+            .unwrap_or(0);
+
+        let major = split
+            .next()
+            .map(|part| part.parse())
+            .unwrap_or(Ok(0))
+            .unwrap_or(0);
+
+        split.next().parse().unwrap_or(0);
+        split.next().parse().unwrap_or(0);
+    }
 
     #[derive(Debug, Deserialize)]
     pub struct Script {
@@ -73,7 +98,11 @@ pub mod build {
                         crate::fetch::github::fetch_github_tags(&client, &combined, &user, &repo)
                             .await?;
 
-                    println!("available: {:?}", &available);
+                    for (name, tag) in available {
+                        let version = parse_version(&name);
+
+                        println!("version: {:?}", &version);
+                    }
                 }
                 _ => Err(anyhow::anyhow!("invalid source"))?,
             }
@@ -86,8 +115,7 @@ pub mod build {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-    let config = Config::with_prefix("/tiramisu");
-    let target = Triple::default();
+    let config = Config::new("/tiramisu", iter::once(Triple::default()));
     let client = Client::with_cache("/tiramisu/cache")?;
 
     match &args {
@@ -95,7 +123,9 @@ async fn main() -> anyhow::Result<()> {
             for package in &build.packages {
                 let script = File::open(&package).map(serde_yaml::from_reader)??;
 
-                build::build(&package, &script, &config, &target, &client).await?;
+                for target in config.targets() {
+                    build::build(&package, &script, &config, &target, &client).await?;
+                }
             }
         }
     }

@@ -1,7 +1,10 @@
-use std::{
-    borrow::Cow,
-    fs,
-    path::{Path, PathBuf},
+use {
+    super::triple::Triple,
+    hashbrown::HashMap,
+    std::{
+        borrow::Cow,
+        path::{Path, PathBuf},
+    },
 };
 
 #[derive(Debug)]
@@ -11,21 +14,25 @@ pub struct Config {
     // Sub-directories of ${prefix}
     source: PathBuf,
     build: PathBuf,
-    target: PathBuf,
+    targets: HashMap<Triple, PathBuf>,
 }
 
 impl Config {
-    pub fn with_prefix(prefix: impl Into<PathBuf>) -> Self {
+    pub fn new(prefix: impl Into<PathBuf>, targets: impl IntoIterator<Item = Triple>) -> Self {
         let prefix = prefix.into();
         let source = prefix.clone().join("source");
         let build = prefix.clone().join("build");
-        let target = prefix.clone().join("target");
+
+        let targets = targets
+            .into_iter()
+            .map(|triple| (triple, prefix.clone().join(triple.to_string())))
+            .collect();
 
         Self {
             prefix,
             source,
             build,
-            target,
+            targets,
         }
     }
 
@@ -41,23 +48,11 @@ impl Config {
         Cow::from(&self.build)
     }
 
-    pub fn target(&self) -> Cow<Path> {
-        Cow::from(&self.target)
+    pub fn targets(&self) -> impl Iterator<Item = &Triple> {
+        self.targets.keys()
     }
 
-    pub fn sources(&self) -> anyhow::Result<impl Iterator<Item = PathBuf>> {
-        let iter = fs::read_dir(self.source())?
-            .flatten()
-            .map(|entry| entry.path());
-
-        Ok(iter)
-    }
-
-    pub fn targets(&self) -> anyhow::Result<impl Iterator<Item = PathBuf>> {
-        let iter = fs::read_dir(self.target())?
-            .flatten()
-            .map(|entry| entry.path());
-
-        Ok(iter)
+    pub fn target_dirs(&self) -> impl Iterator<Item = (&Triple, &PathBuf)> {
+        self.targets.iter()
     }
 }
