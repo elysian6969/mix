@@ -1,11 +1,13 @@
 use {
-    super::client::Client,
-    hashbrown::HashMap,
+    crate::Config,
     semver::{AlphaNumeric, Version},
+    semver_parser::lexer::{Error, Lexer, Token},
     serde::Deserialize,
-    std::{collections::BTreeMap, path::PathBuf},
+    std::{collections::BTreeMap, fs, path::Path},
     url::Url,
 };
+
+pub const BASE_URL: &str = "https://api.github.com";
 
 #[derive(Debug, Deserialize)]
 pub struct Tag {
@@ -21,7 +23,7 @@ pub struct Commit {
     pub url: Url,
 }
 
-pub fn parse_hyphened(input: &str) -> Option<(u64, Option<&str>)> {
+pub fn parse_hyphened<'input>(input: &'input str) -> Option<(u64, Option<&'input str>)> {
     let mut parts = input.splitn(2, |c: char| c == '_' || c == '-');
 
     let version = parts.next()?.parse().ok()?;
@@ -30,95 +32,86 @@ pub fn parse_hyphened(input: &str) -> Option<(u64, Option<&str>)> {
     Some((version, build))
 }
 
-pub fn parse_version(input: &str) -> Version {
-    let mut trimmed = input.trim_start_matches(|c: char| !c.is_ascii_digit());
-
-    if trimmed.is_empty() {
-        trimmed = input;
-    }
-
-    let mut parts = trimmed.splitn(3, '.').flat_map(parse_hyphened);
-    let version = match (parts.next(), parts.next(), parts.next()) {
-        // 1.2.3-build & 1.2.3_build
-        (Some((major, None)), Some((minor, None)), Some((patch, Some(pre)))) => Version {
-            major,
-            minor,
-            patch,
-            pre: vec![AlphaNumeric(String::from(pre))],
-            build: Vec::new(),
-        },
-        // 1.2.3
-        (Some((major, None)), Some((minor, None)), Some((patch, None))) => Version {
-            major,
-            minor,
-            patch,
-            pre: Vec::new(),
-            build: Vec::new(),
-        },
-        // 1.2-build && 1.2_build
-        (Some((major, None)), Some((minor, Some(pre))), None) => Version {
-            major,
-            minor,
-            patch: 0,
-            pre: vec![AlphaNumeric(String::from(pre))],
-            build: Vec::new(),
-        },
-        // 1.2
-        (Some((major, None)), Some((minor, None)), None) => Version {
-            major,
-            minor,
-            patch: 0,
-            pre: Vec::new(),
-            build: Vec::new(),
-        },
-        // 1-build && 1_build
-        (Some((major, Some(pre))), None, None) => Version {
-            major,
-            minor: 0,
-            patch: 0,
-            pre: vec![AlphaNumeric(String::from(pre))],
-            build: Vec::new(),
-        },
-        // 1
-        (Some((major, None)), None, None) => Version {
-            major,
-            minor: 0,
-            patch: 0,
-            pre: Vec::new(),
-            build: Vec::new(),
-        },
-        _ => Version {
-            major: 0,
-            minor: 0,
-            patch: 0,
-            pre: vec![AlphaNumeric(String::from(trimmed))],
-            build: Vec::new(),
-        },
+fn parse_part<'input>(
+    input: &'input [Result<Token<'input>, Error>],
+) -> (u64, &'input [Result<Token<'input>, Error>]) {
+    let (part, rest) = match input {
+        [Ok(Token::Numeric(numeric)), Ok(Token::Dot), rest @ ..]
+        | [Ok(Token::Numeric(numeric)), rest @ ..] => (Some(*numeric), rest),
+        rest => (None, rest),
     };
+
+    (part.unwrap_or(0), rest)
+}
+
+fn parse_pre<'input>(
+    input: &'input [Result<Token<'input>, Error>],
+) -> (Option<&str>, &'input [Result<Token<'input>, Error>]) {
+    match &input {
+        [Ok(Token::Hyphen), Ok(Token::AlphaNumeric(pre)), rest @ ..]
+        | [Err(Error::UnexpectedChar('/')), Ok(Token::AlphaNumeric(pre)), rest @ ..] => {
+            (Some(pre), rest)
+        }
+        rest => (None, rest),
+    }
+}
+
+fn skip_junk<'input>(
+    input: &'input [Result<Token<'input>, Error>],
+) -> &'input [Result<Token<'input>, Error>] {
+    let offset = input.iter().position(|token| match token {
+        Ok(Token::Numeric(_)) => true,
+        _ => false,
+    });
+
+    if let Some(offset) = offset {
+        &input[offset..]
+    } else {
+        input
+    }
+}
+
+pub fn parse_version(input: &str) -> Version {
+    let mut input: Vec<_> = Lexer::new(&input[..]).collect();
+
+    let input = skip_junk(&input[..]);
+    let (major, input) = parse_part(&input[..]);
+    let (minor, input) = parse_part(&input[..]);
+    let (patch, input) = parse_part(&input[..]);
+    let (pre, input) = parse_pre(&input[..]);
+
+    let mut version = Version::new(major, minor, patch);
+
+    if let Some(pre) = pre {
+        version.pre.push(AlphaNumeric(pre.to_owned()));
+    }
 
     version
 }
 
 pub async fn fetch_github_tags(
-    client: &Client,
+    config: &Config,
     name: impl AsRef<str>,
     user: impl AsRef<str>,
     repo: impl AsRef<str>,
 ) -> anyhow::Result<BTreeMap<Version, Tag>> {
-    let name = name.as_ref();
-    let user = user.as_ref();
-    let repo = repo.as_ref();
-    let url = format!("https://api.github.com/repos/{}/{}/tags", &user, &repo);
-    let bytes = client.get(&name, "tags.json", url.as_str()).await?;
-    let tags: Vec<Tag> = serde_json::from_slice(&bytes)?;
+    let path = Path::new(name.as_ref()).join("tags.json");
+    let url = BASE_URL.to_owned() + "/repos/" + user.as_ref() + "/" + repo.as_ref() + "/tags";
 
-    Ok(tags
+    config.fetch_cached(&path, url.as_str()).await?;
+
+    let tags: Vec<Tag> = serde_json::from_slice(&fs::read(config.cache_with(&path))?[..])?;
+    let tags = tags
         .into_iter()
         .map(|tag| (parse_version(tag.name.as_str()), tag))
-        .collect())
+        .collect();
+
+    println!("tags: {:?}", &tags);
+
+    Ok(tags)
 }
 
-#[derive(Debug, Deserialize)]
+/*#[derive(Debug, Deserialize)]
 pub struct Ref {
     #[serde(rename = "ref")]
     pub reference: PathBuf,
@@ -155,4 +148,4 @@ pub async fn fetch_github_refs(
         .into_iter()
         .map(|reference| (reference.reference.clone(), reference))
         .collect())
-}
+}*/

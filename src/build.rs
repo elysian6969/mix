@@ -1,15 +1,15 @@
-use {
-    super::{config::Config, delete_on_drop::DeleteOnDrop, fetch::Client, triple::Triple},
-    crossterm::style::{Colorize, Styler},
-    hashbrown::HashMap,
-    multimap::MultiMap,
-    semver::Version,
-    serde::Deserialize,
-    std::{collections::BTreeMap, path::PathBuf},
-    tokio::{fs, process::Command},
-    url::Url,
-    walkdir::{DirEntry, WalkDir},
-};
+use super::config::Config;
+use super::delete_on_drop::DeleteOnDrop;
+use super::fetch::Client;
+use super::triple::Triple;
+use crossterm::style::{Colorize, Styler};
+use multimap::MultiMap;
+use semver::Version;
+use serde::Deserialize;
+use std::collections::{BTreeMap, HashMap};
+use std::path::PathBuf;
+use tokio::{fs, process::Command};
+use url::Url;
 
 #[derive(Debug, Deserialize)]
 pub struct Script {

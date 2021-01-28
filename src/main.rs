@@ -1,52 +1,33 @@
-use {
-    self::{config::Config, fetch::Client, triple::Triple},
-    clap::Clap,
-    semver::Version,
-    std::{fs::File, iter, path::PathBuf},
-};
+#![feature(format_args_capture)]
+#![feature(iter_partition_in_place)]
+#![feature(str_split_once)]
 
-pub mod build;
-pub mod config;
-pub mod delete_on_drop;
-pub mod fetch;
-pub mod triple;
+use args::Args;
+use clap::Clap;
 
-#[derive(Clap, Debug)]
-pub enum Args {
-    Build(Build),
-}
+pub mod action;
+pub mod args;
+pub mod git;
+pub mod github;
+pub mod source;
+pub mod version;
 
-#[derive(Clap, Debug)]
-pub struct Build {
-    #[clap(parse(from_os_str))]
-    packages: Vec<PathBuf>,
-}
+pub const DISTRO: &str = "tiramisu";
+pub const DISTRO_VERSION: &str = "0.0.6";
+pub const PREFIX: &str = "/tiramisu";
+pub const REPOSITORY: &str = "https://github.com/dysmal/mochis";
+pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-    let config = Config::new("/tiramisu", iter::once(Triple::default()));
-    let client = Client::with_cache("/tiramisu/cache")?;
-    let current_version = Version::parse("5.0.0")?;
+    let http = reqwest::Client::builder().user_agent(USER_AGENT).build()?;
 
-    match &args {
-        Args::Build(build) => {
-            for package in &build.packages {
-                let script = File::open(&package).map(serde_yaml::from_reader)??;
-
-                for target in config.targets() {
-                    build::build(
-                        &package,
-                        &script,
-                        &config,
-                        &target,
-                        &client,
-                        &current_version,
-                    )
-                    .await?;
-                }
-            }
-        }
+    match Args::parse() {
+        Args::Fetch(fetch) => action::fetch(fetch, &http).await?,
+        Args::Install(install) => action::install(install).await?,
+        Args::Remove(remove) => action::remove(remove).await?,
+        Args::Sync(sync) => action::sync(sync).await?,
+        Args::Update(update) => action::update(update).await?,
     }
 
     Ok(())
