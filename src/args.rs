@@ -2,14 +2,17 @@ use clap::Clap;
 
 #[derive(Clap, Debug)]
 pub enum Args {
-    /// fetch packages' sources
-    Fetch(Fetch),
-
     /// install packages
-    Install(Install),
+    Add(Add),
 
     /// remove packages
-    Remove(Remove),
+    Del(Del),
+
+    /// see what a package depends om
+    Depends(Depends),
+
+    /// fetch packages' sources
+    Fetch(Fetch),
 
     /// sync repositories
     Sync(Sync),
@@ -19,19 +22,24 @@ pub enum Args {
 }
 
 #[derive(Clap, Debug)]
-pub struct Fetch {
-    pub packages: Vec<String>,
-}
-
-#[derive(Clap, Debug)]
-pub struct Install {
+pub struct Add {
     #[clap(long)]
     pub target: Option<String>,
     pub packages: Vec<String>,
 }
 
 #[derive(Clap, Debug)]
-pub struct Remove {
+pub struct Del {
+    pub packages: Vec<String>,
+}
+
+#[derive(Clap, Debug)]
+pub struct Depends {
+    pub packages: Vec<String>,
+}
+
+#[derive(Clap, Debug)]
+pub struct Fetch {
     pub packages: Vec<String>,
 }
 

@@ -1,5 +1,5 @@
+#![feature(crate_visibility_modifier)]
 #![feature(format_args_capture)]
-#![feature(iter_partition_in_place)]
 #![feature(str_split_once)]
 
 use args::Args;
@@ -9,7 +9,9 @@ pub mod action;
 pub mod args;
 pub mod git;
 pub mod github;
+pub mod package;
 pub mod source;
+pub mod util;
 pub mod version;
 
 pub const DISTRO: &str = "tiramisu";
@@ -23,9 +25,10 @@ async fn main() -> anyhow::Result<()> {
     let http = reqwest::Client::builder().user_agent(USER_AGENT).build()?;
 
     match Args::parse() {
+        Args::Add(add) => action::add(add).await?,
+        Args::Depends(depends) => action::depends(depends).await?,
         Args::Fetch(fetch) => action::fetch(fetch, &http).await?,
-        Args::Install(install) => action::install(install).await?,
-        Args::Remove(remove) => action::remove(remove).await?,
+        Args::Del(del) => action::del(del).await?,
         Args::Sync(sync) => action::sync(sync).await?,
         Args::Update(update) => action::update(update).await?,
     }

@@ -1,16 +1,18 @@
-use crate::args::{Install, Remove, Update};
+use crate::args::{Add, Del, Update};
 
+mod depends;
 mod fetch;
 mod sync;
 
+pub use depends::depends;
 pub use fetch::fetch;
 pub use sync::sync;
 
-pub async fn install(install: Install) -> anyhow::Result<()> {
+pub async fn add(add: Add) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn remove(remove: Remove) -> anyhow::Result<()> {
+pub async fn del(Del: Del) -> anyhow::Result<()> {
     Ok(())
 }
 

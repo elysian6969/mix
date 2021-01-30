@@ -1,22 +1,35 @@
 use crate::args::Fetch;
 use crate::github;
+use crate::package::{Package, Repository};
 use crate::source::Source;
 use crate::PREFIX;
 use serde::Deserialize;
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::path::Path;
+use std::rc::{Rc, Weak};
 
-#[derive(Debug, Deserialize)]
-pub struct Specification {
-    source: BTreeSet<Source>,
+fn print_package(depth: usize, package: &Weak<Package>) {
+    if package.strong_count() > 1 {
+        println!("cyclic dependencies!");
+        return;
+    }
+
+    println!("{} {}", package.strong_count(), package.weak_count());
+
+    if let Some(package) = package.upgrade() {
+        for (name, package) in &*package.depends() {
+            println!("{depth} {name}");
+
+            print_package(depth + 1, package);
+        }
+    }
 }
 
 pub async fn fetch(fetch: Fetch, http: &reqwest::Client) -> anyhow::Result<()> {
     let prefix = Path::new(PREFIX);
     let packages = prefix.join("repository");
-
-    println!(" -> read repository");
 
     if !packages.exists() {
         println!();
@@ -24,48 +37,11 @@ pub async fn fetch(fetch: Fetch, http: &reqwest::Client) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let list = packages.join("src");
+    let repository = Repository::open(&packages).await?;
 
-    let (existing, missing): (BTreeMap<_, _>, BTreeMap<_, _>) = fetch
-        .packages
-        .into_iter()
-        .map(|name| {
-            let path = list.join(&name).join("package.yml");
-
-            (name, path)
-        })
-        .partition(|(name, path)| path.exists());
-
-    if missing.len() != 0 {
-        println!();
-        eprintln!("==> \x1b[38;5;11mWARNING:\x1b[m not found in repository",);
-    }
-
-    for (name, path) in &existing {
-        println!(" -> parsing package `{name}`");
-
-        let specification: Specification = serde_yaml::from_reader(File::open(&path)?)?;
-
-        for source in &specification.source {
-            match source {
-                Source::Github(user, repository) => {
-                    let tags = github::tags(&http, user, repository).await?;
-
-                    println!();
-
-                    for (version, url) in tags {
-                        print!("    {version}");
-
-                        if !version.pre.is_empty() {
-                            print!(" \x1b[38;5;9munstable\x1b[m");
-                        }
-
-                        println!();
-                    }
-
-                    println!();
-                }
-            }
+    for name in &fetch.packages {
+        if let Some(package) = repository.get(&name) {
+            print_package(0, &Rc::downgrade(&package));
         }
     }
 
