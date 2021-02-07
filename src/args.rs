@@ -1,7 +1,6 @@
 use clap::{AppSettings, Clap};
 
 #[derive(Clap, Debug)]
-#[clap(global_setting = AppSettings::ArgRequiredElseHelp)]
 #[clap(global_setting = AppSettings::UnifiedHelpMessage)]
 pub enum Args {
     Add(Add),
