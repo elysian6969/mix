@@ -26,11 +26,11 @@ async fn main() -> anyhow::Result<()> {
 
     match Args::parse() {
         Args::Add(add) => action::add(add).await?,
-        Args::Depends(depends) => action::depends(depends).await?,
-        Args::Fetch(fetch) => action::fetch(fetch, &http).await?,
         Args::Del(del) => action::del(del).await?,
+        Args::Deps(deps) => action::deps(deps).await?,
+        Args::Fetch(fetch) => action::fetch(fetch, &http).await?,
         Args::Sync(sync) => action::sync(sync).await?,
-        Args::Update(update) => action::update(update).await?,
+        Args::Up(up) => action::update(up).await?,
     }
 
     Ok(())

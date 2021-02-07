@@ -1,54 +1,55 @@
-use clap::Clap;
+use clap::{AppSettings, Clap};
 
 #[derive(Clap, Debug)]
+#[clap(global_setting = AppSettings::ArgRequiredElseHelp)]
+#[clap(global_setting = AppSettings::UnifiedHelpMessage)]
 pub enum Args {
-    /// install packages
     Add(Add),
-
-    /// remove packages
     Del(Del),
-
-    /// see what a package depends om
-    Depends(Depends),
-
-    /// fetch packages' sources
+    Deps(Deps),
     Fetch(Fetch),
-
-    /// sync repositories
     Sync(Sync),
-
-    /// update packages
-    Update(Update),
+    Up(Up),
 }
 
+/// install packages
 #[derive(Clap, Debug)]
 pub struct Add {
     #[clap(long)]
     pub target: Option<String>,
+    #[clap(min_values = 1, required = true)]
     pub packages: Vec<String>,
 }
 
+/// remove packages
 #[derive(Clap, Debug)]
 pub struct Del {
+    #[clap(long)]
+    pub target: Option<String>,
+    #[clap(min_values = 1, required = true)]
     pub packages: Vec<String>,
 }
 
+/// display dependencies of a package
 #[derive(Clap, Debug)]
-pub struct Depends {
-    pub packages: Vec<String>,
+pub struct Deps {
+    pub package: String,
 }
 
+/// download package sources
 #[derive(Clap, Debug)]
 pub struct Fetch {
+    #[clap(min_values = 1, required = true)]
     pub packages: Vec<String>,
 }
 
+/// sync repository
 #[derive(Clap, Debug)]
-pub struct Sync {
-    pub repos: Vec<String>,
-}
+pub struct Sync;
 
+/// update packages
 #[derive(Clap, Debug)]
-pub struct Update {
+pub struct Up {
+    #[clap(min_values = 1, required = true)]
     pub packages: Vec<String>,
 }
