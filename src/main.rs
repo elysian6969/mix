@@ -1,6 +1,5 @@
 #![feature(crate_visibility_modifier)]
 #![feature(format_args_capture)]
-#![feature(str_split_once)]
 
 use args::Args;
 use clap::Clap;
@@ -14,9 +13,9 @@ pub mod source;
 pub mod util;
 pub mod version;
 
-pub const DISTRO: &str = "tiramisu";
+pub const DISTRO: &str = "saraphiem";
 pub const DISTRO_VERSION: &str = "0.0.6";
-pub const PREFIX: &str = "/tiramisu";
+pub const PREFIX: &str = "/saraphiem";
 pub const REPOSITORY: &str = "https://github.com/dysmal/mochis";
 pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 

@@ -30,7 +30,6 @@ pub async fn deps(deps: Deps) -> anyhow::Result<()> {
     let name = deps.package;
     let path = list.join(&name).join("package.yml");
 
-
     println!(" -> parsing package `{name}`");
 
     let specification: Specification = serde_yaml::from_reader(File::open(&path)?)?;

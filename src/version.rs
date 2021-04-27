@@ -28,10 +28,9 @@ fn parse_pre<'input>(
 fn skip_junk<'input>(
     input: &'input [Result<Token<'input>, Error>],
 ) -> &'input [Result<Token<'input>, Error>] {
-    let offset = input.iter().position(|token| match token {
-        Ok(Token::Numeric(_)) => true,
-        _ => false,
-    });
+    let offset = input
+        .iter()
+        .position(|token| matches!(token, Ok(Token::Numeric(_))));
 
     if let Some(offset) = offset {
         &input[offset..]
@@ -41,13 +40,12 @@ fn skip_junk<'input>(
 }
 
 pub fn parse(input: &str) -> Version {
-    let input: Vec<_> = Lexer::new(&input[..]).collect();
-
-    let input = skip_junk(&input[..]);
-    let (major, input) = parse_part(&input[..]);
-    let (minor, input) = parse_part(&input[..]);
-    let (patch, input) = parse_part(&input[..]);
-    let (pre, _) = parse_pre(&input[..]);
+    let input: Vec<_> = Lexer::new(input).collect();
+    let input = skip_junk(input.as_slice());
+    let (major, input) = parse_part(input);
+    let (minor, input) = parse_part(input);
+    let (patch, input) = parse_part(input);
+    let (pre, _) = parse_pre(input);
 
     let mut version = Version::new(major, minor, patch);
 

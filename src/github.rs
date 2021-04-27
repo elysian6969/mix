@@ -64,7 +64,7 @@ pub async fn tags(
             let name = tag.name?;
             let version = version::parse(&name);
 
-            Some((version, tag.tarball_url?.to_owned()))
+            Some((version, tag.tarball_url?))
         })
         .collect();
 

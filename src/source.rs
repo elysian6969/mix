@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Source {
     Github(String, String),
 }
@@ -19,6 +19,21 @@ impl Source {
             Some((_, _)) => Err(anyhow::anyhow!("unknown source")),
             _ => Err(anyhow::anyhow!("expected source")),
         }
+    }
+}
+
+impl fmt::Debug for Source {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match &self {
+            Source::Github(user, repo) => {
+                fmt.write_str("github:")?;
+                fmt.write_str(user)?;
+                fmt.write_str("/")?;
+                fmt.write_str(repo)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
