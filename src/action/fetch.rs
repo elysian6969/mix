@@ -49,11 +49,13 @@ fn print_package<'package>(
     package_id: &'package PackageId,
     visited_packages: &mut HashSet<&'package PackageId>,
 ) -> bool {
+    use crossterm::style::Colorize;
+
     // insert returns false when they key already exists
     let visited = !visited_packages.insert(package_id);
     let star = if visited { " (*)" } else { "" };
 
-    println!("{package_id}{star}");
+    println!("{}{star}", package_id.to_string().green());
 
     visited
 }
@@ -95,8 +97,6 @@ fn print_tree<'package>(
         }
 
         for (index, (package_id, _relationship)) in relationships.iter().enumerate() {
-            //print_branches(levels, symbols);
-
             // the last package is the tail
             // inbetween is either a tee or a down
             let is_last = index == relationships.len() - 1;
@@ -105,6 +105,8 @@ fn print_tree<'package>(
             print_tree(graph, package_id, symbols, visited_packages, levels);
             levels.pop();
         }
+    } else {
+        println!("error: missing {package_id}");
     }
 }
 

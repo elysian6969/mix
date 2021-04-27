@@ -2,7 +2,8 @@ use crate::source::Source;
 use crate::util;
 use futures::stream::{StreamExt, TryStreamExt};
 use serde::Deserialize;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 use std::path::Path;
 use tokio::fs::DirEntry;
 use tokio::{fs, io};
@@ -13,8 +14,6 @@ pub struct Metadata {
     depends: BTreeSet<String>,
     source: BTreeSet<Source>,
 }
-
-use std::fmt;
 
 #[derive(Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct PackageId {
@@ -80,30 +79,32 @@ pub enum Relation {
 #[derive(Debug)]
 pub struct Graph {
     /// packages themselves
-    pub nodes: HashMap<PackageId, Package>,
+    pub nodes: BTreeMap<PackageId, Package>,
     /// relationships between packages
-    pub relations: HashMap<PackageId, HashMap<PackageId, Relation>>,
+    pub relations: BTreeMap<PackageId, BTreeMap<PackageId, Relation>>,
 }
 
 impl Graph {
     pub async fn open(path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let packages: HashMap<_, _> = util::read_dir(path.as_ref().join("packages"))
+        let packages: BTreeMap<_, _> = util::read_dir(path.as_ref().join("packages"))
             .await?
             .then(map_entry)
             .try_collect()
             .await?;
 
         let mut graph = Graph {
-            nodes: HashMap::new(),
-            relations: HashMap::new(),
+            nodes: BTreeMap::new(),
+            relations: BTreeMap::new(),
         };
 
         for (id, package) in packages.into_iter() {
+            graph.relations.insert(id.clone(), BTreeMap::new());
+
             for depend in package.metadata.depends.iter() {
                 graph
                     .relations
-                    .entry(id.clone())
-                    .or_insert_with(HashMap::new)
+                    .get_mut(&id)
+                    .expect("already inserted")
                     .insert(PackageId::new(depend), Relation::Direct);
             }
 
@@ -113,7 +114,7 @@ impl Graph {
         Ok(graph)
     }
 
-    pub fn get(&self, id: &PackageId) -> Option<(&Package, &HashMap<PackageId, Relation>)> {
+    pub fn get(&self, id: &PackageId) -> Option<(&Package, &BTreeMap<PackageId, Relation>)> {
         self.nodes
             .get(id)
             .and_then(|package| self.relations.get(id).map(|relations| (package, relations)))
