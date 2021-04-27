@@ -3,7 +3,7 @@ use crate::git;
 use crate::{PREFIX, REPOSITORY};
 use std::path::Path;
 
-pub async fn sync(sync: Sync) -> anyhow::Result<()> {
+pub async fn sync(_sync: Sync) -> anyhow::Result<()> {
     let prefix = Path::new(PREFIX);
     let repository_path = prefix.join("repository");
 

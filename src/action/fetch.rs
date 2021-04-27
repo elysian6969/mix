@@ -1,21 +1,8 @@
 use crate::args::Fetch;
-use crate::github;
-use crate::package::{Graph, Package, PackageId};
-use crate::source::Source;
+use crate::package::{Graph, PackageId};
 use crate::PREFIX;
-use serde::Deserialize;
-use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::fs::File;
+use std::collections::HashSet;
 use std::path::Path;
-use std::rc::{Rc, Weak};
-
-#[derive(Clone, Copy)]
-enum Prefix {
-    None,
-    Indent,
-    Depth,
-}
 
 struct Symbols {
     down: &'static str,
@@ -31,6 +18,7 @@ static UTF8_SYMBOLS: Symbols = Symbols {
     right: "─",
 };
 
+#[allow(dead_code)]
 static ASCII_SYMBOLS: Symbols = Symbols {
     down: "|",
     tee: "|",
@@ -57,7 +45,7 @@ fn print<'package>(graph: &'package Graph, package_id: &'package PackageId, symb
 
 /// print a package and it's details
 fn print_package<'package>(
-    graph: &'package Graph,
+    _graph: &'package Graph,
     package_id: &'package PackageId,
     visited_packages: &mut HashSet<&'package PackageId>,
 ) -> bool {
@@ -91,7 +79,7 @@ fn print_tree<'package>(
     visited_packages: &mut HashSet<&'package PackageId>,
     levels: &mut Vec<bool>,
 ) {
-    if let Some((package, relationships)) = graph.get(package_id) {
+    if let Some((_package, relationships)) = graph.get(package_id) {
         print_branches(levels, symbols);
 
         let visited = print_package(graph, package_id, visited_packages);
@@ -106,13 +94,12 @@ fn print_tree<'package>(
             return;
         }
 
-        for (index, (package_id, relationship)) in relationships.iter().enumerate() {
+        for (index, (package_id, _relationship)) in relationships.iter().enumerate() {
             //print_branches(levels, symbols);
 
             // the last package is the tail
             // inbetween is either a tee or a down
             let is_last = index == relationships.len() - 1;
-            let character = if is_last { symbols.ell } else { symbols.tee };
 
             levels.push(!is_last);
             print_tree(graph, package_id, symbols, visited_packages, levels);
@@ -121,7 +108,7 @@ fn print_tree<'package>(
     }
 }
 
-pub async fn fetch(fetch: Fetch, http: &reqwest::Client) -> anyhow::Result<()> {
+pub async fn fetch(fetch: Fetch, _http: &reqwest::Client) -> anyhow::Result<()> {
     let packages = Path::new(PREFIX).join("repository");
 
     if !packages.exists() {

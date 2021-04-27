@@ -2,10 +2,8 @@ use crate::source::Source;
 use crate::util;
 use futures::stream::{StreamExt, TryStreamExt};
 use serde::Deserialize;
-use std::cell::{Ref, RefCell};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
-use std::rc::{Rc, Weak};
 use tokio::fs::DirEntry;
 use tokio::{fs, io};
 
@@ -91,7 +89,7 @@ impl Graph {
     pub async fn open(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let packages: HashMap<_, _> = util::read_dir(path.as_ref().join("packages"))
             .await?
-            .then(|entry| map_entry(entry))
+            .then(map_entry)
             .try_collect()
             .await?;
 

@@ -1,9 +1,8 @@
 use crate::args::Deps;
-use crate::github;
 use crate::source::Source;
 use crate::PREFIX;
 use serde::Deserialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::path::Path;
 
