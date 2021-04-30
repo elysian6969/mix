@@ -1,7 +1,4 @@
-use clap::{AppSettings, Clap};
-
-#[derive(Clap, Debug)]
-#[clap(global_setting = AppSettings::UnifiedHelpMessage)]
+#[derive(Debug)]
 pub enum Args {
     Add(Add),
     Del(Del),
@@ -12,43 +9,37 @@ pub enum Args {
 }
 
 /// install packages
-#[derive(Clap, Debug)]
+#[derive(Debug)]
 pub struct Add {
-    #[clap(long)]
     pub target: Option<String>,
-    #[clap(min_values = 1, required = true)]
     pub packages: Vec<String>,
 }
 
 /// remove packages
-#[derive(Clap, Debug)]
+#[derive(Debug)]
 pub struct Del {
-    #[clap(long)]
     pub target: Option<String>,
-    #[clap(min_values = 1, required = true)]
     pub packages: Vec<String>,
 }
 
 /// display dependencies of a package
-#[derive(Clap, Debug)]
+#[derive(Debug)]
 pub struct Deps {
     pub package: String,
 }
 
 /// download package sources
-#[derive(Clap, Debug)]
+#[derive(Debug)]
 pub struct Fetch {
-    #[clap(min_values = 1, required = true)]
     pub packages: Vec<String>,
 }
 
 /// sync repository
-#[derive(Clap, Debug)]
+#[derive(Debug)]
 pub struct Sync;
 
 /// update packages
-#[derive(Clap, Debug)]
+#[derive(Debug)]
 pub struct Up {
-    #[clap(min_values = 1, required = true)]
     pub packages: Vec<String>,
 }
