@@ -1,5 +1,5 @@
 [package]
-name    = "mangler"
+name    = "manager"
 version = "0.0.0"
 authors = ["saraph"]
 edition = "2018"

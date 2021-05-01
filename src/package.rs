@@ -53,7 +53,7 @@ impl Package {
     }
 }
 
-async fn map_entry(entry: io::Result<DirEntry>) -> anyhow::Result<(PackageId, Package)> {
+async fn map_entry(entry: io::Result<DirEntry>) -> crate::Result<(PackageId, Package)> {
     let entry = entry?;
     let file_name = entry
         .file_name()
@@ -85,8 +85,8 @@ pub struct Graph {
 }
 
 impl Graph {
-    pub async fn open(path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let packages: BTreeMap<_, _> = util::read_dir(path.as_ref().join("packages"))
+    pub async fn open(path: impl AsRef<Path>) -> crate::Result<Self> {
+        let packages: BTreeMap<_, _> = util::read_dir(path.as_ref())
             .await?
             .then(map_entry)
             .try_collect()

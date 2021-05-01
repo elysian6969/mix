@@ -1,62 +1,44 @@
-use git2::build::RepoBuilder;
-use git2::{FetchOptions, RemoteCallbacks, Repository};
+use crate::shell::{Shell, Text};
 use std::path::Path;
+use tokio::process::Command;
 
-fn fetch_options() -> FetchOptions<'static> {
-    let mut callbacks = RemoteCallbacks::new();
+pub async fn fetch(shell: &Shell, path: impl AsRef<Path>) -> crate::Result<()> {
+    Text::new(" -> fetch\n").render(shell).await?;
 
-    callbacks
-        .sideband_progress(|message| {
-            println!("{:?}", std::str::from_utf8(message));
-
-            true
-        })
-        .transfer_progress(|progress| {
-            println!("total_objects: {}", progress.total_objects());
-            println!("indexed_objects: {}", progress.indexed_objects());
-            println!("received_objects: {}", progress.received_objects());
-            println!("local_objects: {}", progress.local_objects());
-            println!("total_deltas: {}", progress.total_deltas());
-            println!("indexed_deltas: {}", progress.indexed_deltas());
-            println!("received_bytes: {}", progress.received_bytes());
-
-            true
-        })
-        .update_tips(|message, old, new| {
-            println!("{}", message);
-            println!("{}", old);
-            println!("{}", new);
-
-            true
-        });
-
-    let mut fetch_options = FetchOptions::new();
-
-    fetch_options.remote_callbacks(callbacks);
-    fetch_options
-}
-
-pub async fn remote_fetch(repository: &Repository) -> anyhow::Result<()> {
-    println!(" -> fetch");
-
-    let mut fetch_options = fetch_options();
-
-    repository
-        .find_remote("origin")?
-        .fetch(&["msster"], Some(&mut fetch_options), None)?;
+    Command::new("git")
+        .arg("fetch")
+        .current_dir(path)
+        .spawn()?
+        .wait()
+        .await?;
 
     Ok(())
 }
 
-pub async fn clone(url: &str, path: &impl AsRef<Path>) -> anyhow::Result<()> {
-    println!(" -> clone");
+pub async fn merge(shell: &Shell, path: impl AsRef<Path>) -> crate::Result<()> {
+    Text::new(" -> merge\n").render(shell).await?;
 
-    let mut builder = RepoBuilder::new();
-    let fetch_options = fetch_options();
+    Command::new("git")
+        .arg("merge")
+        .current_dir(path)
+        .spawn()?
+        .wait()
+        .await?;
 
-    builder.fetch_options(fetch_options);
+    Ok(())
+}
 
-    builder.clone(&url, path.as_ref())?;
+pub async fn clone(shell: &Shell, path: &impl AsRef<Path>, url: &str) -> crate::Result<()> {
+    Text::new(" -> clone\n").render(shell).await?;
+
+    Command::new("git")
+        .arg("clone")
+        .arg(url)
+        .arg(".")
+        .current_dir(path)
+        .spawn()?
+        .wait()
+        .await?;
 
     Ok(())
 }

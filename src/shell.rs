@@ -1,0 +1,125 @@
+// tbh this needs to be a lib in general
+
+use crossterm::style::Colorize;
+use std::cell::RefCell;
+use std::fmt::Display;
+use tokio::io;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Stderr, Stdin, Stdout};
+
+pub struct Shell {
+    stdin: RefCell<BufReader<Stdin>>,
+    stderr: RefCell<Stderr>,
+    stdout: RefCell<Stdout>,
+    pub(crate) status: Option<String>,
+}
+
+impl Shell {
+    pub fn new() -> Self {
+        Self {
+            stdin: RefCell::new(BufReader::new(io::stdin())),
+            stdout: RefCell::new(io::stdout()),
+            stderr: RefCell::new(io::stderr()),
+            status: None,
+        }
+    }
+
+    pub async fn write_all(&self, bytes: &[u8]) -> io::Result<()> {
+        self.stdout.borrow_mut().write_all(bytes).await
+    }
+
+    pub async fn flush(&self) -> io::Result<()> {
+        self.stdout.borrow_mut().flush().await
+    }
+
+    pub async fn read_line(&self, buffer: &mut String) -> io::Result<usize> {
+        self.stdin.borrow_mut().read_line(buffer).await
+    }
+
+    pub async fn normal(&self, args: impl Display) -> io::Result<()> {
+        let text = format!(" -> {args}\n");
+
+        self.write_all(text.as_bytes()).await
+    }
+
+    pub async fn header(&self, args: impl Display) -> io::Result<()> {
+        let text = format!("==> {args}\n");
+
+        self.write_all(text.as_bytes()).await
+    }
+
+    pub async fn warning(&self, args: impl Display) -> io::Result<()> {
+        let text = format!("{warning} {args}\n", warning = " warn ".black().on_yellow());
+
+        self.write_all(text.as_bytes()).await
+    }
+
+    pub async fn error(&self, args: impl Display) -> io::Result<()> {
+        let text = format!("ERR!!! {args}\n");
+
+        self.write_all(text.as_bytes()).await
+    }
+
+    pub async fn confirm(&self, args: impl Display) -> io::Result<bool> {
+        let text = format!("{args} {}/{} ", "y".green(), "n".red());
+        self.write_all(text.as_bytes()).await?;
+
+        let mut buffer = String::new();
+
+        self.read_line(&mut buffer).await?;
+
+        buffer.to_lowercase();
+
+        Ok(buffer.starts_with("\n") || buffer.starts_with("y"))
+    }
+}
+
+pub struct Text<D: Display> {
+    display: D,
+}
+
+impl<D: Display> Text<D> {
+    pub fn new(display: D) -> Self {
+        Self { display }
+    }
+
+    pub async fn render(&self, shell: &Shell) -> io::Result<()> {
+        shell.write_all(self.display.to_string().as_bytes()).await?;
+        shell.flush().await?;
+
+        Ok(())
+    }
+}
+
+use std::ops::RangeInclusive;
+
+pub struct ProgressBar {
+    range: RangeInclusive<f32>,
+    value: f32,
+    width: Option<f32>,
+}
+
+impl ProgressBar {
+    pub fn new(range: RangeInclusive<f32>, value: f32) -> Self {
+        Self {
+            range,
+            value,
+            width: None,
+        }
+    }
+
+    pub fn width(mut self, width: Option<f32>) -> Self {
+        self.width = width;
+        self
+    }
+
+    pub async fn render(&self, shell: &Shell) -> io::Result<()> {
+        let diff = self.value / self.range.end();
+        let width = self.width.unwrap_or(50.0) * diff;
+        let bar = "#".repeat(width as usize);
+
+        shell.write_all(bar.as_bytes()).await?;
+        shell.flush().await?;
+
+        Ok(())
+    }
+}
