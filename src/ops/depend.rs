@@ -12,7 +12,9 @@ pub async fn depend(shell: &Shell, atoms: HashSet<Atom>) -> crate::Result<()> {
     for atom in atoms {
         let package_id = PackageId::new(atom.name);
 
-        print!("{}", graph.display(&package_id, &UTF8_SYMBOLS));
+        Text::new(graph.display(&package_id, &UTF8_SYMBOLS))
+            .render(&shell)
+            .await?;
     }
 
     Ok(())

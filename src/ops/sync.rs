@@ -1,9 +1,6 @@
-use crate::atom::Atom;
 use crate::git;
-use crate::package::{Graph, PackageId, UTF8_SYMBOLS};
-use crate::shell::{Shell, Text};
+use crate::shell::Shell;
 use crate::{PREFIX, REPOSITORY};
-use std::collections::HashSet;
 use std::path::Path;
 
 pub async fn sync(shell: &Shell) -> crate::Result<()> {

@@ -4,23 +4,16 @@ use crossterm::style::Colorize;
 use std::cell::RefCell;
 use std::fmt::Display;
 use tokio::io;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Stderr, Stdin, Stdout};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Stdin, Stdout};
 
 pub struct Shell {
     stdin: RefCell<BufReader<Stdin>>,
-    stderr: RefCell<Stderr>,
-    stdout: RefCell<Stdout>,
-    pub(crate) status: Option<String>,
+    stdout: RefCell<BufWriter<Stdout>>,
 }
 
 impl Shell {
     pub fn new() -> Self {
-        Self {
-            stdin: RefCell::new(BufReader::new(io::stdin())),
-            stdout: RefCell::new(io::stdout()),
-            stderr: RefCell::new(io::stderr()),
-            status: None,
-        }
+        Self::default()
     }
 
     pub async fn write_all(&self, bytes: &[u8]) -> io::Result<()> {
@@ -69,7 +62,16 @@ impl Shell {
 
         buffer.to_lowercase();
 
-        Ok(buffer.starts_with("\n") || buffer.starts_with("y"))
+        Ok(buffer.starts_with('\n') || buffer.starts_with('y'))
+    }
+}
+
+impl Default for Shell {
+    fn default() -> Self {
+        Self {
+            stdin: RefCell::new(BufReader::new(io::stdin())),
+            stdout: RefCell::new(BufWriter::new(io::stdout())),
+        }
     }
 }
 

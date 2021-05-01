@@ -20,8 +20,9 @@ pub const REPOSITORY: &str = "https://github.com/dysmal/mochis";
 pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
 use crate::options::Options;
-use crate::shell::{ProgressBar, Shell, Text};
-use tokio::time::{sleep, Duration};
+use crate::shell::Shell;
+//use crate::shell::{ProgressBar, Shell, Text};
+//use tokio::time::{sleep, Duration};
 
 pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T> = std::result::Result<T, Error>;
