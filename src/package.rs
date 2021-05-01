@@ -16,6 +16,29 @@ pub struct Metadata {
 }
 
 #[derive(Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
+pub struct GroupId {
+    id: String,
+}
+
+impl GroupId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self { id: id.into() }
+    }
+}
+
+impl fmt::Debug for GroupId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.id, f)
+    }
+}
+
+impl fmt::Display for GroupId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(&self.id, f)
+    }
+}
+
+#[derive(Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct PackageId {
     id: String,
 }
@@ -40,20 +63,25 @@ impl fmt::Display for PackageId {
 
 #[derive(Debug)]
 pub struct Package {
+    pub group_id: GroupId,
     pub package_id: PackageId,
     pub metadata: Metadata,
 }
 
 impl Package {
-    pub fn new(package_id: PackageId, metadata: Metadata) -> Self {
+    pub fn new(group_id: GroupId, package_id: PackageId, metadata: Metadata) -> Self {
         Package {
+            group_id,
             package_id,
             metadata,
         }
     }
 }
 
-async fn map_entry(entry: io::Result<DirEntry>) -> crate::Result<(PackageId, Package)> {
+async fn map_entry(
+    group_id: GroupId,
+    entry: io::Result<DirEntry>,
+) -> crate::Result<(PackageId, Package)> {
     let entry = entry?;
     let file_name = entry
         .file_name()
@@ -64,7 +92,7 @@ async fn map_entry(entry: io::Result<DirEntry>) -> crate::Result<(PackageId, Pac
     let config = entry.path().join("package.yml");
     let slice = &fs::read(config).await?;
     let metadata: Metadata = serde_yaml::from_slice(&slice)?;
-    let package = Package::new(package_id.clone(), metadata);
+    let package = Package::new(group_id, package_id.clone(), metadata);
 
     Ok((package_id, package))
 }
@@ -86,9 +114,17 @@ pub struct Graph {
 
 impl Graph {
     pub async fn open(path: impl AsRef<Path>) -> crate::Result<Self> {
-        let packages: BTreeMap<_, _> = util::read_dir(path.as_ref())
+        let path = path.as_ref();
+        let group_id = GroupId::new(
+            path.file_name()
+                .expect("file_name")
+                .to_str()
+                .expect("to_str"),
+        );
+
+        let packages: BTreeMap<_, _> = util::read_dir(path)
             .await?
-            .then(map_entry)
+            .then(|entry| map_entry(group_id.clone(), entry))
             .try_collect()
             .await?;
 
@@ -130,6 +166,38 @@ impl Graph {
             root,
             symbols,
         }
+    }
+
+    pub fn dependency_order(&self, id: &PackageId) -> Vec<PackageId> {
+        let mut visited_packages = HashSet::new();
+        let mut dependency_order = Vec::new();
+
+        depends_resolve(&self, &id, &mut visited_packages, &mut dependency_order);
+
+        dependency_order
+    }
+}
+
+fn depends_resolve<'package>(
+    graph: &'package Graph,
+    package_id: &'package PackageId,
+    visited_packages: &mut HashSet<&'package PackageId>,
+    dependency_order: &mut Vec<PackageId>,
+) {
+    if let Some((_package, relationships)) = graph.get(package_id) {
+        let visited = !visited_packages.insert(package_id);
+
+        if visited {
+            dependency_order.push(package_id.clone());
+
+            return;
+        }
+
+        for (package_id, _relationship) in relationships.iter().rev() {
+            depends_resolve(graph, package_id, visited_packages, dependency_order);
+        }
+
+        dependency_order.push(package_id.clone());
     }
 }
 
@@ -199,16 +267,21 @@ fn print<'package>(
 fn print_package<'package>(
     f: &mut fmt::Formatter,
     _graph: &'package Graph,
-    package_id: &'package PackageId,
+    package: &'package Package,
     visited_packages: &mut HashSet<&'package PackageId>,
 ) -> Result<bool, fmt::Error> {
     use crossterm::style::Colorize;
 
     // insert returns false when they key already exists
-    let visited = !visited_packages.insert(package_id);
+    let visited = !visited_packages.insert(&package.package_id);
     let star = if visited { " (*)" } else { "" };
 
-    writeln!(f, "{}{star}", package_id.to_string().green())?;
+    writeln!(
+        f,
+        "{}/{}{star}",
+        package.group_id.id.as_str().green(),
+        package.package_id.id.as_str().green()
+    )?;
 
     Ok(visited)
 }
@@ -241,10 +314,10 @@ fn print_tree<'package>(
     visited_packages: &mut HashSet<&'package PackageId>,
     levels: &mut Vec<bool>,
 ) -> fmt::Result {
-    if let Some((_package, relationships)) = graph.get(package_id) {
+    if let Some((package, relationships)) = graph.get(package_id) {
         print_branches(f, levels, symbols)?;
 
-        let visited = print_package(f, graph, package_id, visited_packages)?;
+        let visited = print_package(f, graph, package, visited_packages)?;
 
         // don't recursively enumerate dependencies
         if visited {
@@ -266,6 +339,7 @@ fn print_tree<'package>(
             levels.pop();
         }
     } else {
+        // fixme
         println!("error: missing {package_id}");
     }
 

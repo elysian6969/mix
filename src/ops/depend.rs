@@ -15,6 +15,10 @@ pub async fn depend(shell: &Shell, atoms: HashSet<Atom>) -> crate::Result<()> {
         Text::new(graph.display(&package_id, &UTF8_SYMBOLS))
             .render(&shell)
             .await?;
+
+        let order = graph.dependency_order(&package_id);
+
+        dbg!(order);
     }
 
     Ok(())
