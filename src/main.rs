@@ -5,7 +5,6 @@
 pub mod atom;
 pub mod config;
 pub mod git;
-pub mod github;
 pub mod ops;
 pub mod options;
 pub mod package;
@@ -14,11 +13,6 @@ pub mod shell;
 pub mod source;
 pub mod util;
 pub mod version;
-
-pub const DISTRO: &str = "saraphiem";
-pub const DISTRO_VERSION: &str = "0.0.6";
-pub const PREFIX: &str = "/saraphiem";
-pub const REPOSITORY: &str = "https://github.com/dysmal/mochis";
 
 pub const fn user_agent() -> &'static str {
     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"))
@@ -34,7 +28,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> crate::Result<()> {
-    let config = Config::new()?;
+    let config = Config::builder("/unknown")
+        .repository(
+            "/unknown/repository/core",
+            "https://github.com/saraph/unknown-repository",
+        )
+        .build()?;
 
     /*for progress in 0u32..=100 {
         Text::new(format_args!("{progress:>2}% "))
