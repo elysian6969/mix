@@ -5,6 +5,7 @@
 pub mod atom;
 pub mod config;
 pub mod git;
+pub mod global;
 pub mod ops;
 pub mod options;
 pub mod package;
@@ -20,6 +21,7 @@ pub const fn user_agent() -> &'static str {
 
 use crate::config::Config;
 use crate::options::Options;
+use std::path::Path;
 //use crate::shell::{ProgressBar, Shell, Text};
 //use tokio::time::{sleep, Duration};
 
@@ -28,11 +30,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> crate::Result<()> {
-    let config = Config::builder("/unknown")
-        .repository(
-            "/unknown/repositories/core",
-            "https://github.com/saraph/unknown-repository",
-        )
+    let prefix = Path::new("/unknown");
+    let metadata = global::Metadata::open(&prefix.join("unknown.yml")).await?;
+    let config = Config::builder(prefix)
+        .repositories(metadata.repositories)
         .build()?;
 
     /*for progress in 0u32..=100 {

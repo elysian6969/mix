@@ -57,6 +57,17 @@ impl ClientBuilder {
         self
     }
 
+    pub fn repositories(
+        mut self,
+        repositories: impl IntoIterator<Item = (impl Into<PathBuf>, impl AsRef<str>)>,
+    ) -> Self {
+        for (path, url) in repositories {
+            self = self.repository(path, url);
+        }
+
+        self
+    }
+
     pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
         self.user_agent = user_agent.into();
         self
