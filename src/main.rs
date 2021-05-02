@@ -3,11 +3,13 @@
 #![feature(never_type)]
 
 pub mod atom;
+pub mod config;
 pub mod git;
 pub mod github;
 pub mod ops;
 pub mod options;
 pub mod package;
+pub mod partial;
 pub mod shell;
 pub mod source;
 pub mod util;
@@ -17,10 +19,13 @@ pub const DISTRO: &str = "saraphiem";
 pub const DISTRO_VERSION: &str = "0.0.6";
 pub const PREFIX: &str = "/saraphiem";
 pub const REPOSITORY: &str = "https://github.com/dysmal/mochis";
-pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
+pub const fn user_agent() -> &'static str {
+    concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"))
+}
+
+use crate::config::Config;
 use crate::options::Options;
-use crate::shell::Shell;
 //use crate::shell::{ProgressBar, Shell, Text};
 //use tokio::time::{sleep, Duration};
 
@@ -28,8 +33,8 @@ pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<()> {
-    let shell = Shell::new();
+async fn main() -> crate::Result<()> {
+    let config = Config::new()?;
 
     /*for progress in 0u32..=100 {
         Text::new(format_args!("{progress:>2}% "))
@@ -44,11 +49,12 @@ async fn main() -> Result<()> {
 
     Text::new("\x1b[K").render(&shell).await?;*/
 
-    let options = Options::from_env(&shell).await?;
+    let options = Options::from_env(&config).await?;
 
     match options {
-        Options::Depend { atoms } => ops::depend(&shell, atoms).await?,
-        Options::Fetch { sync: true } => ops::sync(&shell).await?,
+        Options::Depend { atoms } => ops::depend(&config, atoms).await?,
+        Options::Fetch { sync: true } => ops::sync(&config).await?,
+        Options::Install { atoms } => ops::install(&config, atoms).await?,
         _ => {}
     }
 

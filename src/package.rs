@@ -1,104 +1,46 @@
-use crate::source::Source;
 use crate::util;
 use futures::stream::{StreamExt, TryStreamExt};
-use serde::Deserialize;
-use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
+use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::path::Path;
 use tokio::fs::DirEntry;
 use tokio::{fs, io};
 
-#[derive(Debug, Deserialize)]
-pub struct Metadata {
-    #[serde(default = "BTreeSet::new")]
-    depends: BTreeSet<String>,
-    source: BTreeSet<Source>,
-}
+pub use self::display::Display;
+pub use self::group_id::GroupId;
+pub use self::metadata::Metadata;
+pub use self::node::Node;
+pub use self::package_id::PackageId;
+pub use self::symbols::Symbols;
 
-#[derive(Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct GroupId {
-    id: String,
-}
-
-impl GroupId {
-    pub fn new(id: impl Into<String>) -> Self {
-        Self { id: id.into() }
-    }
-}
-
-impl fmt::Debug for GroupId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.id, f)
-    }
-}
-
-impl fmt::Display for GroupId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.id, f)
-    }
-}
-
-#[derive(Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct PackageId {
-    id: String,
-}
-
-impl PackageId {
-    pub fn new(id: impl Into<String>) -> Self {
-        Self { id: id.into() }
-    }
-}
-
-impl fmt::Debug for PackageId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.id, f)
-    }
-}
-
-impl fmt::Display for PackageId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.id, f)
-    }
-}
-
-#[derive(Debug)]
-pub struct Package {
-    pub group_id: GroupId,
-    pub package_id: PackageId,
-    pub metadata: Metadata,
-}
-
-impl Package {
-    pub fn new(group_id: GroupId, package_id: PackageId, metadata: Metadata) -> Self {
-        Package {
-            group_id,
-            package_id,
-            metadata,
-        }
-    }
-}
+mod display;
+mod group_id;
+mod metadata;
+mod node;
+mod package_id;
+mod symbols;
 
 async fn map_entry(
     group_id: GroupId,
     entry: io::Result<DirEntry>,
-) -> crate::Result<(PackageId, Package)> {
+) -> crate::Result<(PackageId, Node)> {
     let entry = entry?;
     let file_name = entry
         .file_name()
         .into_string()
-        .map_err(|_| anyhow::anyhow!("invalid utf-8"))?;
+        .map_err(|_| "invalid utf-8")?;
 
     let package_id = PackageId::new(file_name);
     let config = entry.path().join("package.yml");
     let slice = &fs::read(config).await?;
     let metadata: Metadata = serde_yaml::from_slice(&slice)?;
-    let package = Package::new(group_id, package_id.clone(), metadata);
+    let package = Node::new(group_id, package_id.clone(), metadata);
 
     Ok((package_id, package))
 }
 
 #[derive(Debug)]
-pub enum Relation {
+pub enum Relationship {
     Build,
     Direct,
     Runtime,
@@ -107,9 +49,9 @@ pub enum Relation {
 #[derive(Debug)]
 pub struct Graph {
     /// packages themselves
-    pub nodes: BTreeMap<PackageId, Package>,
+    pub nodes: BTreeMap<PackageId, Node>,
     /// relationships between packages
-    pub relations: BTreeMap<PackageId, BTreeMap<PackageId, Relation>>,
+    pub relationships: BTreeMap<PackageId, BTreeMap<PackageId, Relationship>>,
 }
 
 impl Graph {
@@ -130,33 +72,55 @@ impl Graph {
 
         let mut graph = Graph {
             nodes: BTreeMap::new(),
-            relations: BTreeMap::new(),
+            relationships: BTreeMap::new(),
         };
 
-        for (id, package) in packages.into_iter() {
-            graph.relations.insert(id.clone(), BTreeMap::new());
+        for (id, node) in packages.into_iter() {
+            graph.relationships.insert(id.clone(), BTreeMap::new());
 
-            for depend in package.metadata.depends.iter() {
+            for depend in node.metadata.depends.iter() {
                 graph
-                    .relations
+                    .relationships
                     .get_mut(&id)
                     .expect("already inserted")
-                    .insert(PackageId::new(depend), Relation::Direct);
+                    .insert(PackageId::new(depend), Relationship::Direct);
             }
 
-            graph.nodes.insert(id, package);
+            graph.nodes.insert(id, node);
         }
 
         Ok(graph)
     }
 
-    pub fn get(&self, id: &PackageId) -> Option<(&Package, &BTreeMap<PackageId, Relation>)> {
-        self.nodes
-            .get(id)
-            .and_then(|package| self.relations.get(id).map(|relations| (package, relations)))
+    pub fn get(
+        &self,
+        package_id: &PackageId,
+    ) -> Option<(&Node, &BTreeMap<PackageId, Relationship>)> {
+        self.nodes.get(package_id).and_then(|node| {
+            self.relationships
+                .get(package_id)
+                .map(|relationships| (node, relationships))
+        })
     }
 
-    pub fn display<'graph, 'symbols>(
+    pub fn dependency_order<'graph>(
+        &'graph self,
+        package_id: &'graph PackageId,
+    ) -> Vec<&'graph PackageId> {
+        let mut visited_packages = HashSet::new();
+        let mut dependency_order = Vec::new();
+
+        depends_resolve(
+            &self,
+            &package_id,
+            &mut visited_packages,
+            &mut dependency_order,
+        );
+
+        dependency_order
+    }
+
+    pub fn display_tree<'graph, 'symbols>(
         &'graph self,
         root: &'graph PackageId,
         symbols: &'symbols Symbols,
@@ -167,28 +131,19 @@ impl Graph {
             symbols,
         }
     }
-
-    pub fn dependency_order(&self, id: &PackageId) -> Vec<PackageId> {
-        let mut visited_packages = HashSet::new();
-        let mut dependency_order = Vec::new();
-
-        depends_resolve(&self, &id, &mut visited_packages, &mut dependency_order);
-
-        dependency_order
-    }
 }
 
-fn depends_resolve<'package>(
-    graph: &'package Graph,
-    package_id: &'package PackageId,
-    visited_packages: &mut HashSet<&'package PackageId>,
-    dependency_order: &mut Vec<PackageId>,
+fn depends_resolve<'graph>(
+    graph: &'graph Graph,
+    package_id: &'graph PackageId,
+    visited_packages: &mut HashSet<&'graph PackageId>,
+    dependency_order: &mut Vec<&'graph PackageId>,
 ) {
-    if let Some((_package, relationships)) = graph.get(package_id) {
+    if let Some((_node, relationships)) = graph.get(package_id) {
         let visited = !visited_packages.insert(package_id);
 
         if visited {
-            dependency_order.push(package_id.clone());
+            dependency_order.push(package_id);
 
             return;
         }
@@ -197,151 +152,6 @@ fn depends_resolve<'package>(
             depends_resolve(graph, package_id, visited_packages, dependency_order);
         }
 
-        dependency_order.push(package_id.clone());
+        dependency_order.push(package_id);
     }
-}
-
-pub struct Display<'graph, 'symbols> {
-    graph: &'graph Graph,
-    root: &'graph PackageId,
-    symbols: &'symbols Symbols,
-}
-
-impl<'graph, 'symbols> fmt::Display for Display<'graph, 'symbols> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        print(f, &self.graph, &self.root, &self.symbols)
-    }
-}
-
-use std::collections::HashSet;
-
-pub struct Symbols {
-    down: &'static str,
-    tee: &'static str,
-    ell: &'static str,
-    right: &'static str,
-}
-
-#[allow(dead_code)]
-pub static UTF8_SYMBOLS: Symbols = Symbols {
-    down: "│",
-    tee: "├",
-    ell: "└",
-    right: "─",
-};
-
-#[allow(dead_code)]
-pub static ASCII_SYMBOLS: Symbols = Symbols {
-    down: "|",
-    tee: "|",
-    ell: "`",
-    right: "-",
-};
-
-/// print a dependency tree starting from a package
-fn print<'package>(
-    f: &mut fmt::Formatter,
-    graph: &'package Graph,
-    package_id: &'package PackageId,
-    symbols: &Symbols,
-) -> fmt::Result {
-    // set of visited packages otherwise circular
-    // dependencies end in stack overflow
-    let mut visited_packages = HashSet::new();
-    // maintain where branches are
-    let mut levels = Vec::new();
-
-    print_tree(
-        f,
-        graph,
-        package_id,
-        symbols,
-        &mut visited_packages,
-        &mut levels,
-    )?;
-
-    Ok(())
-}
-
-/// print a package and it's details
-fn print_package<'package>(
-    f: &mut fmt::Formatter,
-    _graph: &'package Graph,
-    package: &'package Package,
-    visited_packages: &mut HashSet<&'package PackageId>,
-) -> Result<bool, fmt::Error> {
-    use crossterm::style::Colorize;
-
-    // insert returns false when they key already exists
-    let visited = !visited_packages.insert(&package.package_id);
-    let star = if visited { " (*)" } else { "" };
-
-    writeln!(
-        f,
-        "{}/{}{star}",
-        package.group_id.id.as_str().green(),
-        package.package_id.id.as_str().green()
-    )?;
-
-    Ok(visited)
-}
-
-/// print the tree's branches
-fn print_branches(
-    f: &mut fmt::Formatter,
-    levels: &mut Vec<bool>,
-    symbols: &Symbols,
-) -> fmt::Result {
-    if let Some((last, rest)) = levels.split_last() {
-        for branch in rest {
-            let character = if *branch { symbols.down } else { " " };
-            write!(f, "{}   ", character)?;
-        }
-
-        let character = if *last { symbols.tee } else { symbols.ell };
-        write!(f, "{0}{1}{1} ", character, symbols.right)?;
-    }
-
-    Ok(())
-}
-
-/// print a dependency tree
-fn print_tree<'package>(
-    f: &mut fmt::Formatter,
-    graph: &'package Graph,
-    package_id: &'package PackageId,
-    symbols: &Symbols,
-    visited_packages: &mut HashSet<&'package PackageId>,
-    levels: &mut Vec<bool>,
-) -> fmt::Result {
-    if let Some((package, relationships)) = graph.get(package_id) {
-        print_branches(f, levels, symbols)?;
-
-        let visited = print_package(f, graph, package, visited_packages)?;
-
-        // don't recursively enumerate dependencies
-        if visited {
-            return Ok(());
-        }
-
-        // zero dependencies means we needn't print anything
-        if relationships.is_empty() {
-            return Ok(());
-        }
-
-        for (index, (package_id, _relationship)) in relationships.iter().enumerate() {
-            // the last package is the tail
-            // inbetween is either a tee or a down
-            let is_last = index == relationships.len() - 1;
-
-            levels.push(!is_last);
-            print_tree(f, graph, package_id, symbols, visited_packages, levels)?;
-            levels.pop();
-        }
-    } else {
-        // fixme
-        println!("error: missing {package_id}");
-    }
-
-    Ok(())
 }

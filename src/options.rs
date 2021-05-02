@@ -1,5 +1,6 @@
 use crate::atom::Atom;
-use crate::shell::{Shell, Text};
+use crate::config::Config;
+use crate::shell::Text;
 use crossterm::style::Colorize;
 use pico_args::Arguments;
 use std::collections::HashSet;
@@ -14,16 +15,16 @@ pub enum Options {
 }
 
 impl Options {
-    pub async fn from_env(shell: &Shell) -> crate::Result<Options> {
+    pub async fn from_env(config: &Config) -> crate::Result<Options> {
         let mut args = Arguments::from_env();
 
         if args.contains(["-h", "--help"]) {
-            print_help(&shell).await?;
+            print_help(&config).await?;
         }
 
         let subcommand = match args.subcommand()? {
             Some(subcommand) => subcommand,
-            None => print_help(&shell).await?,
+            None => print_help(&config).await?,
         };
 
         let options = match subcommand.as_str() {
@@ -40,7 +41,7 @@ impl Options {
                 atoms: into_atoms(args),
             },
             "s" | "search" => Options::Search,
-            _ => print_help(&shell).await?,
+            _ => print_help(&config).await?,
         };
 
         Ok(options)
@@ -55,7 +56,7 @@ fn into_atoms(arguments: Arguments) -> HashSet<Atom> {
         .collect()
 }
 
-async fn print_help(shell: &Shell) -> crate::Result<!> {
+async fn print_help(config: &Config) -> crate::Result<!> {
     let format = format!(
         "\
 usage {program} {arguments}
@@ -82,6 +83,6 @@ usage {program} {arguments}
         search = " search ".black().on_yellow()
     );
 
-    Text::new(format).render(&shell).await?;
+    Text::new(format).render(config.shell()).await?;
     std::process::exit(0)
 }

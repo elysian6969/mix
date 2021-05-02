@@ -1,16 +1,16 @@
+use crate::config::Config;
 use crate::git;
-use crate::shell::Shell;
 use crate::{PREFIX, REPOSITORY};
 use std::path::Path;
 
-pub async fn sync(shell: &Shell) -> crate::Result<()> {
+pub async fn sync(config: &Config) -> crate::Result<()> {
     let repository = Path::new(PREFIX).join("repository");
 
     if repository.exists() {
-        git::fetch(&shell, &repository).await?;
-        git::merge(&shell, &repository).await?;
+        git::fetch(&config, &repository).await?;
+        git::merge(&config, &repository).await?;
     } else {
-        git::clone(&shell, &repository, REPOSITORY).await?;
+        git::clone(&config, &repository, REPOSITORY).await?;
     }
 
     Ok(())

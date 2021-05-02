@@ -3,7 +3,7 @@ use url::Url;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Source {
-    url: Url,
+    pub url: Url,
 }
 
 impl Source {
