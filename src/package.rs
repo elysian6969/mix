@@ -55,38 +55,40 @@ pub struct Graph {
 }
 
 impl Graph {
-    pub async fn open(path: impl AsRef<Path>) -> crate::Result<Self> {
-        let path = path.as_ref();
-        let group_id = GroupId::new(
-            path.file_name()
-                .expect("file_name")
-                .to_str()
-                .expect("to_str"),
-        );
-
-        let packages: BTreeMap<_, _> = util::read_dir(path)
-            .await?
-            .then(|entry| map_entry(group_id.clone(), entry))
-            .try_collect()
-            .await?;
-
+    pub async fn open(repositories: impl Iterator<Item = impl AsRef<Path>>) -> crate::Result<Self> {
         let mut graph = Graph {
             nodes: BTreeMap::new(),
             relationships: BTreeMap::new(),
         };
 
-        for (id, node) in packages.into_iter() {
-            graph.relationships.insert(id.clone(), BTreeMap::new());
+        for repository in repositories {
+            let path = repository.as_ref();
+            let name = path
+                .file_name()
+                .expect("file_name")
+                .to_str()
+                .expect("to_str");
 
-            for depend in node.metadata.depends.iter() {
-                graph
-                    .relationships
-                    .get_mut(&id)
-                    .expect("already inserted")
-                    .insert(PackageId::new(depend), Relationship::Direct);
+            let group_id = GroupId::new(name);
+            let entries = util::read_dir(path.join("packages")).await?;
+            let packages: BTreeMap<_, _> = entries
+                .then(|entry| map_entry(group_id.clone(), entry))
+                .try_collect()
+                .await?;
+
+            for (id, node) in packages.into_iter() {
+                graph.relationships.insert(id.clone(), BTreeMap::new());
+
+                for depend in node.metadata.depends.iter() {
+                    graph
+                        .relationships
+                        .get_mut(&id)
+                        .expect("already inserted")
+                        .insert(PackageId::new(depend), Relationship::Direct);
+                }
+
+                graph.nodes.insert(id, node);
             }
-
-            graph.nodes.insert(id, node);
         }
 
         Ok(graph)

@@ -5,7 +5,8 @@ use crate::shell::Text;
 use std::collections::HashSet;
 
 pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()> {
-    let graph = Graph::open(config.prefix().join("repository/core")).await?;
+    let repositories = config.repositories().keys();
+    let graph = Graph::open(repositories).await?;
 
     for atom in atoms {
         let package_id = PackageId::new(atom.name);

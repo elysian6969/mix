@@ -30,7 +30,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 async fn main() -> crate::Result<()> {
     let config = Config::builder("/unknown")
         .repository(
-            "/unknown/repository/core",
+            "/unknown/repositories/core",
             "https://github.com/saraph/unknown-repository",
         )
         .build()?;
