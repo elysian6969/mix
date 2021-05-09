@@ -1,6 +1,7 @@
 use super::{GroupId, Metadata, PackageId};
+use ufmt::derive::uDebug;
 
-#[derive(Debug)]
+#[derive(uDebug)]
 pub struct Node {
     pub group_id: GroupId,
     pub package_id: PackageId,

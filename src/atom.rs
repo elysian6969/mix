@@ -1,7 +1,8 @@
 use semver::VersionReq;
 use std::str::FromStr;
+use ufmt::derive::uDebug;
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq)]
 pub struct Atom {
     pub name: String,
     pub version: VersionReq,
@@ -27,5 +28,52 @@ impl FromStr for Atom {
                 version: VersionReq::any(),
             }),
         }
+    }
+}
+
+impl ufmt::uDebug for Atom {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        struct Version<'version>(&'version VersionReq);
+
+        impl<'version> ufmt::uDebug for Version<'version> {
+            fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+            where
+                W: ufmt::uWrite + ?Sized,
+            {
+                let buf = format!("{:?}", self.0);
+
+                ufmt::uwrite!(f, "{}", buf)
+            }
+        }
+
+        f.debug_struct("Atom")?
+            .field("name", &self.name)?
+            .field("repositories", &Version(&self.version))?
+            .finish()
+    }
+}
+
+impl ufmt::uDisplay for Atom {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        struct Version<'version>(&'version VersionReq);
+
+        impl<'version> ufmt::uDisplay for Version<'version> {
+            fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+            where
+                W: ufmt::uWrite + ?Sized,
+            {
+                let buf = format!("{}", self.0);
+
+                ufmt::uwrite!(f, "{}", buf)
+            }
+        }
+
+        ufmt::uwrite!(f, "{}:{}", self.name, Version(&self.version))
     }
 }

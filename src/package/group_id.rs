@@ -1,4 +1,4 @@
-use std::fmt;
+use std::ops::Deref;
 use std::sync::Arc;
 
 #[derive(Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -18,14 +18,20 @@ impl GroupId {
     }
 }
 
-impl fmt::Debug for GroupId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.group_id, f)
+impl ufmt::uDebug for GroupId {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        ufmt::uDisplay::fmt(self.group_id.deref(), f)
     }
 }
 
-impl fmt::Display for GroupId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.group_id, f)
+impl ufmt::uDisplay for GroupId {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        ufmt::uDisplay::fmt(self.group_id.deref(), f)
     }
 }

@@ -75,17 +75,21 @@ impl Default for Shell {
     }
 }
 
-pub struct Text<D: Display> {
+pub struct Text<D: ufmt::uDisplay> {
     display: D,
 }
 
-impl<D: Display> Text<D> {
+impl<D: ufmt::uDisplay> Text<D> {
     pub fn new(display: D) -> Self {
         Self { display }
     }
 
-    pub async fn render(&self, shell: &Shell) -> io::Result<()> {
-        shell.write_all(self.display.to_string().as_bytes()).await?;
+    pub async fn render(&self, shell: &Shell) -> crate::Result<()> {
+        let mut buffer = String::new();
+
+        ufmt::uwrite!(&mut buffer, "{}", self.display)?;
+
+        shell.write_all(buffer.as_bytes()).await?;
         shell.flush().await?;
 
         Ok(())
@@ -114,7 +118,7 @@ impl ProgressBar {
         self
     }
 
-    pub async fn render(&self, shell: &Shell) -> io::Result<()> {
+    pub async fn render(&self, shell: &Shell) -> crate::Result<()> {
         let diff = self.value / self.range.end();
         let width = self.width.unwrap_or(50.0) * diff;
         let bar = "#".repeat(width as usize);

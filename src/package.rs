@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use tokio::fs::DirEntry;
 use tokio::{fs, io};
+use ufmt::derive::uDebug;
 
 pub use self::display::Display;
 pub use self::group_id::GroupId;
@@ -39,14 +40,14 @@ async fn map_entry(
     Ok((package_id, package))
 }
 
-#[derive(Debug)]
+#[derive(uDebug)]
 pub enum Relationship {
     Build,
     Direct,
     Runtime,
 }
 
-#[derive(Debug)]
+#[derive(uDebug)]
 pub struct Graph {
     /// packages themselves
     pub nodes: BTreeMap<PackageId, Node>,

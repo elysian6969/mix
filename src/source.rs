@@ -1,16 +1,33 @@
 use std::fmt;
-use url::Url;
+use ufmt::derive::uDebug;
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Source {
-    pub url: Url,
+#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd, uDebug)]
+pub enum Source {
+    Github { user: String, repository: String },
 }
 
 impl Source {
-    pub fn parse(source: &str) -> anyhow::Result<Source> {
-        let url = Url::parse(source)?;
+    pub fn parse(source: &str) -> crate::Result<Source> {
+        parse(source)
+    }
+}
 
-        Ok(Source { url })
+fn parse(source: &str) -> crate::Result<Source> {
+    let source = source.split_once(':');
+
+    match source {
+        Some(("github", path)) => parse_github(path),
+        _ => Err("invalid")?,
+    }
+}
+
+fn parse_github(path: &str) -> crate::Result<Source> {
+    match path.split_once('/') {
+        Some((user, repository)) => Ok(Source::Github {
+            user: user.into(),
+            repository: repository.into(),
+        }),
+        _ => Err("invalid")?,
     }
 }
 
@@ -45,12 +62,3 @@ impl<'de> serde::Deserialize<'de> for Source {
         deserializer.deserialize_str(SourceVisitor)
     }
 }
-
-/*impl serde::Serialize for Source {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}*/

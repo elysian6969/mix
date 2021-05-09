@@ -4,8 +4,9 @@ use crate::shell::Text;
 use crossterm::style::Colorize;
 use pico_args::Arguments;
 use std::collections::HashSet;
+use ufmt::derive::uDebug;
 
-#[derive(Debug)]
+#[derive(uDebug)]
 pub enum Options {
     Depend { atoms: HashSet<Atom> },
     Fetch { sync: bool },

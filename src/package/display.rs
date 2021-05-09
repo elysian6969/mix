@@ -1,7 +1,6 @@
 use super::{Graph, Node, PackageId, Symbols};
 use crossterm::style::Colorize;
 use std::collections::HashSet;
-use std::fmt;
 
 pub struct Display<'graph, 'symbols> {
     pub graph: &'graph Graph,
@@ -9,15 +8,18 @@ pub struct Display<'graph, 'symbols> {
     pub symbols: &'symbols Symbols,
 }
 
-impl<'graph, 'symbols> fmt::Display for Display<'graph, 'symbols> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<'graph, 'symbols> ufmt::uDisplay for Display<'graph, 'symbols> {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
         // set of visited packages otherwise circular
         // dependencies end in stack overflow
         let mut visited_packages = HashSet::new();
         // maintain where branches are
         let mut levels = Vec::new();
 
-        print_tree(
+        print_tree::<W>(
             f,
             self.graph,
             self.root,
@@ -31,54 +33,64 @@ impl<'graph, 'symbols> fmt::Display for Display<'graph, 'symbols> {
 }
 
 /// print a package and it's details
-fn print_package<'graph>(
-    f: &mut fmt::Formatter,
+fn print_package<'graph, W>(
+    f: &mut ufmt::Formatter<'_, W>,
     _graph: &'graph Graph,
     node: &'graph Node,
     visited_packages: &mut HashSet<&'graph PackageId>,
-) -> Result<bool, fmt::Error> {
+) -> Result<bool, W::Error>
+where
+    W: ufmt::uWrite + ?Sized,
+{
     // insert returns false when they key already exists
     let visited = !visited_packages.insert(&node.package_id);
     let star = if visited { " (*)" } else { "" };
 
-    writeln!(
+    ufmt::uwriteln!(
         f,
-        "{}/{}{star}",
-        node.group_id.as_str().green(),
-        node.package_id.as_str().green()
+        "{}/{}{}",
+        node.group_id.as_str().green().to_string(),
+        node.package_id.as_str().green().to_string(),
+        star,
     )?;
 
     Ok(visited)
 }
 
 /// print the tree's branches
-fn print_branches(
-    f: &mut fmt::Formatter,
+fn print_branches<W>(
+    f: &mut ufmt::Formatter<'_, W>,
     levels: &mut Vec<bool>,
     symbols: &Symbols,
-) -> fmt::Result {
+) -> Result<(), W::Error>
+where
+    W: ufmt::uWrite + ?Sized,
+{
     if let Some((last, rest)) = levels.split_last() {
         for branch in rest {
             let character = if *branch { symbols.down } else { " " };
-            write!(f, "{}   ", character)?;
+            ufmt::uwrite!(f, "{}   ", character)?;
         }
 
         let character = if *last { symbols.tee } else { symbols.ell };
-        write!(f, "{0}{1}{1} ", character, symbols.right)?;
+        ufmt::uwrite!(f, "{}{}{} ", character, symbols.right, symbols.right)?;
     }
 
     Ok(())
 }
 
 /// print a dependency tree
-fn print_tree<'graph>(
-    f: &mut fmt::Formatter,
+fn print_tree<'graph, W>(
+    f: &mut ufmt::Formatter<'_, W>,
     graph: &'graph Graph,
     package_id: &'graph PackageId,
     symbols: &Symbols,
     visited_packages: &mut HashSet<&'graph PackageId>,
     levels: &mut Vec<bool>,
-) -> fmt::Result {
+) -> Result<(), W::Error>
+where
+    W: ufmt::uWrite + ?Sized,
+{
     if let Some((node, relationships)) = graph.get(package_id) {
         print_branches(f, levels, symbols)?;
 
@@ -100,8 +112,11 @@ fn print_tree<'graph>(
             levels.pop();
         }
     } else {
-        // fixme
-        println!("error: missing {package_id}");
+        // TODO: sanitise the tree lmao?
+        let mut buffer = String::new();
+        let _ = ufmt::uwrite!(&mut buffer, "{}", package_id);
+
+        println!("error: missing {buffer}");
     }
 
     Ok(())
