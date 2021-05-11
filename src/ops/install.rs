@@ -11,7 +11,7 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
     //let mut fetch_list = Vec::new();
 
     for atom in atoms {
-        let package_id = PackageId::new(atom.name);
+        let package_id = PackageId::new(atom.package);
         let order = graph.dependency_order(&package_id);
 
         for package_id in order {

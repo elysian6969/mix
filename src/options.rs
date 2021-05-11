@@ -30,16 +30,16 @@ impl Options {
 
         let options = match subcommand.as_str() {
             "d" | "depend" => Options::Depend {
-                atoms: into_atoms(args),
+                atoms: into_atoms(config, args).await,
             },
             "f" | "fetch" => Options::Fetch {
                 sync: args.contains(["-s", "--sync"]),
             },
             "i" | "install" => Options::Install {
-                atoms: into_atoms(args),
+                atoms: into_atoms(config, args).await,
             },
             "r" | "remove" => Options::Remove {
-                atoms: into_atoms(args),
+                atoms: into_atoms(config, args).await,
             },
             "s" | "search" => Options::Search,
             _ => print_help(&config).await?,
@@ -49,12 +49,24 @@ impl Options {
     }
 }
 
-fn into_atoms(arguments: Arguments) -> HashSet<Atom> {
-    arguments
-        .finish()
-        .iter()
-        .flat_map(|atom| Atom::parse(atom.to_str()?).ok())
-        .collect()
+async fn into_atoms(config: &Config, args: Arguments) -> HashSet<Atom> {
+    let mut atoms = HashSet::new();
+
+    for arg in args.finish() {
+        let arg = arg.to_str().expect("kill yourself");
+
+        match Atom::parse(arg) {
+            Ok(atom) => {
+                atoms.insert(atom);
+            }
+            Err(ref error) => {
+                let buf = format!("{error:?}");
+                let _ = Text::new(buf).render(config.shell()).await;
+            }
+        }
+    }
+
+    atoms
 }
 
 async fn print_help(config: &Config) -> crate::Result<!> {

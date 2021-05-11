@@ -1,6 +1,7 @@
 #![feature(crate_visibility_modifier)]
 #![feature(format_args_capture)]
 #![feature(never_type)]
+#![feature(str_split_once)]
 
 pub mod atom;
 pub mod config;
@@ -30,7 +31,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> crate::Result<()> {
-    let prefix = Path::new("/unknown");
+    let prefix = Path::new("/data/data/com.termux/files/usr/unknown");
     let metadata = global::Metadata::open(&prefix.join("unknown.yml")).await?;
     let config = Config::builder(prefix)
         .repositories(metadata.repositories)

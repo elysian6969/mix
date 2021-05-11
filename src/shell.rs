@@ -28,30 +28,6 @@ impl Shell {
         self.stdin.borrow_mut().read_line(buffer).await
     }
 
-    pub async fn normal(&self, args: impl Display) -> io::Result<()> {
-        let text = format!(" -> {args}\n");
-
-        self.write_all(text.as_bytes()).await
-    }
-
-    pub async fn header(&self, args: impl Display) -> io::Result<()> {
-        let text = format!("==> {args}\n");
-
-        self.write_all(text.as_bytes()).await
-    }
-
-    pub async fn warning(&self, args: impl Display) -> io::Result<()> {
-        let text = format!("{warning} {args}\n", warning = " warn ".black().on_yellow());
-
-        self.write_all(text.as_bytes()).await
-    }
-
-    pub async fn error(&self, args: impl Display) -> io::Result<()> {
-        let text = format!("ERR!!! {args}\n");
-
-        self.write_all(text.as_bytes()).await
-    }
-
     pub async fn confirm(&self, args: impl Display) -> io::Result<bool> {
         let text = format!("{args} {}/{} ", "y".green(), "n".red());
         self.write_all(text.as_bytes()).await?;

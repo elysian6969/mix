@@ -1,33 +1,36 @@
+pub mod lexer;
+pub mod parser;
+
+use parser::Parser;
 use std::fmt;
 use ufmt::derive::uDebug;
 
 #[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd, uDebug)]
 pub enum Source {
     Github { user: String, repository: String },
+    Kernel { user: String, repository: String },
+    Savannah { repository: String },
+    Sourceware { repository: String },
 }
 
 impl Source {
-    pub fn parse(source: &str) -> crate::Result<Source> {
-        parse(source)
-    }
-}
+    pub fn parse(input: &str) -> crate::Result<Source> {
+        let source = Parser::new(input)
+            .map_err(|error| {
+                let mut buffer = String::from("TODO: implement Error: ");
+                let _ = ufmt::uwrite!(buffer, "{:?}", error);
 
-fn parse(source: &str) -> crate::Result<Source> {
-    let source = source.split_once(':');
+                buffer
+            })?
+            .parse()
+            .map_err(|error| {
+                let mut buffer = String::from("TODO: implement Error: ");
+                let _ = ufmt::uwrite!(buffer, "{:?}", error);
 
-    match source {
-        Some(("github", path)) => parse_github(path),
-        _ => Err("invalid")?,
-    }
-}
+                buffer
+            })?;
 
-fn parse_github(path: &str) -> crate::Result<Source> {
-    match path.split_once('/') {
-        Some((user, repository)) => Ok(Source::Github {
-            user: user.into(),
-            repository: repository.into(),
-        }),
-        _ => Err("invalid")?,
+        Ok(source)
     }
 }
 

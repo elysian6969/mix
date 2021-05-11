@@ -9,11 +9,16 @@ pub async fn depend(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()> 
     let graph = Graph::open(repositories).await?;
 
     for atom in atoms.iter() {
-        let package_id = PackageId::new(&atom.name);
+        let mut buf = String::new();
+        let _ = ufmt::uwrite!(buf, "{:?}\n", &atoms);
 
-        Text::new(graph.display_tree(&package_id, &Symbols::utf8()))
-            .render(config.shell())
-            .await?;
+        Text::new(buf).render(config.shell()).await?;
+
+        let package_id = PackageId::new(&atom.package);
+
+        /*Text::new(graph.display_tree(&package_id, &Symbols::utf8()))
+        .render(config.shell())
+        .await?;*/
     }
 
     Ok(())

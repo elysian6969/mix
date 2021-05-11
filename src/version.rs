@@ -5,7 +5,7 @@ use std::mem;
 
 type Result<'input, T> = std::result::Result<T, Error<'input>>;
 
-pub fn parse<'input>(input: &'input str) -> Result<'input, semver::Version> {
+pub fn parse(input: &str) -> Result<'_, semver::Version> {
     Parser::new(input)?.version()
 }
 
@@ -114,7 +114,7 @@ impl<'input> Parser<'input> {
             None
         };
 
-        mem::replace(&mut self.lookahead, lookahead).ok_or_else(|| Error::UnexpectedEnd)
+        mem::replace(&mut self.lookahead, lookahead).ok_or(Error::UnexpectedEnd)
     }
 
     /// peek one token
@@ -222,9 +222,7 @@ impl<'input> Parser<'input> {
 
     /// parse a dot-separated set of identifiers
     fn parts(&mut self) -> Result<'input, Vec<Identifier>> {
-        let mut parts = Vec::new();
-
-        parts.push(self.identifier()?);
+        let mut parts = vec![self.identifier()?];
 
         while let Some(&Token::Dot) = self.peek() {
             self.pop()?;
