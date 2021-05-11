@@ -16,9 +16,9 @@ pub async fn depend(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()> 
 
         let package_id = PackageId::new(&atom.package);
 
-        /*Text::new(graph.display_tree(&package_id, &Symbols::utf8()))
-        .render(config.shell())
-        .await?;*/
+        Text::new(graph.display_tree(&package_id, &Symbols::utf8()))
+            .render(config.shell())
+            .await?;
     }
 
     Ok(())

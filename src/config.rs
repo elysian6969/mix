@@ -1,5 +1,10 @@
+mod builder;
+mod client;
+
+pub use self::builder::Builder;
+pub use self::client::Client;
+
 use crate::shell::Shell;
-use reqwest::Client;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use url::Url;
@@ -7,13 +12,16 @@ use url::Url;
 pub struct Config {
     client: Client,
     prefix: PathBuf,
+    build: PathBuf,
+    cache: PathBuf,
     repositories: BTreeMap<PathBuf, Url>,
     shell: Shell,
 }
 
 impl Config {
-    pub fn builder(prefix: impl Into<PathBuf>) -> ClientBuilder {
-        ClientBuilder {
+    /// config builder
+    pub fn builder(prefix: impl Into<PathBuf>) -> Builder {
+        Builder {
             prefix: prefix.into(),
             repositories: BTreeMap::new(),
             error: Ok(()),
@@ -21,68 +29,41 @@ impl Config {
         }
     }
 
+    /// web request stuff
     pub fn client(&self) -> &Client {
         &self.client
     }
 
+    /// root prefix
     pub fn prefix(&self) -> &Path {
         self.prefix.as_path()
     }
 
+    /// {prefix}/build
+    pub fn build(&self) -> &Path {
+        self.build.as_path()
+    }
+
+    /// {prefix}/cache
+    pub fn cache(&self) -> &Path {
+        self.cache.as_path()
+    }
+
+    /// helper function to clean up code i guess?
+    pub fn cache_with<F>(&self, callback: F) -> PathBuf
+    where
+        F: FnOnce(PathBuf) -> PathBuf,
+    {
+        callback(self.cache().to_path_buf())
+    }
+
+    /// map of repositories
     pub fn repositories(&self) -> &BTreeMap<PathBuf, Url> {
         &self.repositories
     }
 
+    /// shell interaction
     pub fn shell(&self) -> &Shell {
         &self.shell
-    }
-}
-
-pub struct ClientBuilder {
-    prefix: PathBuf,
-    repositories: BTreeMap<PathBuf, Url>,
-    error: crate::Result<()>,
-    user_agent: String,
-}
-
-impl ClientBuilder {
-    pub fn repository(mut self, path: impl Into<PathBuf>, url: impl AsRef<str>) -> Self {
-        match Url::parse(url.as_ref()) {
-            Ok(url) => {
-                self.repositories.insert(path.into(), url);
-            }
-            Err(err) => self.error = self.error.and(Err(Box::new(err))),
-        }
-
-        self
-    }
-
-    pub fn repositories(
-        mut self,
-        repositories: impl IntoIterator<Item = (impl Into<PathBuf>, impl AsRef<str>)>,
-    ) -> Self {
-        for (path, url) in repositories {
-            self = self.repository(path, url);
-        }
-
-        self
-    }
-
-    pub fn user_agent(mut self, user_agent: impl Into<String>) -> Self {
-        self.user_agent = user_agent.into();
-        self
-    }
-
-    pub fn build(self) -> crate::Result<Config> {
-        self.error?;
-
-        let client = Client::builder().user_agent(self.user_agent).build()?;
-
-        Ok(Config {
-            client,
-            prefix: self.prefix,
-            repositories: self.repositories,
-            shell: Shell::default(),
-        })
     }
 }
