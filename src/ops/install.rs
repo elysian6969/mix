@@ -1,6 +1,8 @@
 use crate::atom::Atom;
 use crate::config::Config;
+use crate::github::Repo;
 use crate::package::{Graph, PackageId};
+use crate::source::Source;
 use std::collections::HashSet;
 
 pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()> {
@@ -14,7 +16,16 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
         for package_id in order {
             let (node, _relationships) = graph.get(&package_id).expect("should always be some");
 
-            for source in node.metadata.source.iter() {}
+            for source in node.metadata.source.iter() {
+                match source {
+                    Source::Github { user, repository } => {
+                        let tags = Repo::new(user, repository).tags(config).await?;
+
+                        println!("{tags:?}");
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 

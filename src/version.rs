@@ -122,11 +122,13 @@ impl<'input> Parser<'input> {
         self.lookahead.as_ref()
     }
 
-    /// skip whitespace if present
-    fn skip_whitespace(&mut self) -> Result<'input, ()> {
+    /// skip junk
+    fn skip_junk(&mut self) -> Result<'input, bool> {
         match self.peek() {
-            Some(&Token::Whitespace(_, _)) => self.pop().map(|_| ()),
-            _token => Ok(()),
+            Some(&Token::AlphaNumeric(_)) => self.pop().map(|_| true),
+            Some(&Token::Hyphen) => self.pop().map(|_| true),
+            Some(&Token::Whitespace(_, _)) => self.pop().map(|_| true),
+            _token => Ok(false),
         }
     }
 
@@ -250,15 +252,13 @@ impl<'input> Parser<'input> {
     ///
     /// `1.0.0` or `3.0.0-beta.1`
     pub fn version(&mut self) -> Result<'input, semver::Version> {
-        self.skip_whitespace()?;
+        while self.skip_junk()? {}
 
         let major = self.numeric()?;
         let minor = self.dot_numeric()?;
         let patch = self.patch_numeric()?;
         let pre = self.pre()?;
         let build = self.plus_build_metadata()?;
-
-        self.skip_whitespace()?;
 
         Ok(From::from(Version {
             major,
