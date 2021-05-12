@@ -2,6 +2,7 @@
 #![allow(stable_features)]
 #![feature(crate_visibility_modifier)]
 #![feature(format_args_capture)]
+#![feature(map_first_last)]
 #![feature(never_type)]
 #![feature(str_split_once)]
 

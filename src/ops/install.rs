@@ -3,14 +3,14 @@ use crate::config::Config;
 use crate::github::Repo;
 use crate::package::{Graph, PackageId};
 use crate::source::Source;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()> {
     let repositories = config.repositories().keys();
     let graph = Graph::open(repositories).await?;
 
     for atom in atoms {
-        let package_id = PackageId::new(atom.package);
+        let package_id = PackageId::new(&atom.package);
         let order = graph.dependency_order(&package_id);
 
         for package_id in order {
@@ -20,8 +20,12 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
                 match source {
                     Source::Github { user, repository } => {
                         let tags = Repo::new(user, repository).tags(config).await?;
+                        let tags: BTreeMap<_, _> = tags
+                            .iter()
+                            .filter(|(version, _tag)| atom.version.matches(version))
+                            .collect();
 
-                        println!("{tags:?}");
+                        println!("{:?}", tags.last_key_value());
                     }
                     _ => {}
                 }
