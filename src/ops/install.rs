@@ -1,8 +1,7 @@
 use crate::atom::Atom;
 use crate::config::Config;
-use crate::github::Repo;
 use crate::package::{Graph, PackageId};
-use crate::source::Source;
+use crate::source::{github, gitlab, Source};
 use std::collections::{BTreeMap, HashSet};
 
 pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()> {
@@ -11,21 +10,28 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
 
     for atom in atoms {
         let package_id = PackageId::new(&atom.package);
-        let order = graph.dependency_order(&package_id);
+        let order = graph.order(&package_id);
 
-        for package_id in order {
-            let (node, _relationships) = graph.get(&package_id).expect("should always be some");
+        for entry in order.iter() {
+            for source in entry.node().metadata.source.iter() {
+                match &source {
+                    Source::Github { user, repo } => {
+                        let repo = github::Repo::new(user, repo);
+                        let tags = repo.tags(config).await?;
+                        let matches: BTreeMap<_, _> = tags.matches(&atom.version).collect();
 
-            for source in node.metadata.source.iter() {
-                match source {
-                    Source::Github { user, repository } => {
-                        let tags = Repo::new(user, repository).tags(config).await?;
-                        let tags: BTreeMap<_, _> = tags
-                            .iter()
-                            .filter(|(version, _tag)| atom.version.matches(version))
-                            .collect();
+                        if let Some((version, url)) = matches.last_key_value() {
+                            println!("v{version} ({url})");
+                        }
+                    }
+                    Source::Gitlab { user, repo } => {
+                        let repo = gitlab::Repo::new(gitlab::gitlab_url(), user, repo);
+                        let tags = repo.tags(config).await?;
+                        let matches: BTreeMap<_, _> = tags.matches(&atom.version).collect();
 
-                        println!("{:?}", tags.last_key_value());
+                        if let Some((version, url)) = matches.last_key_value() {
+                            println!("v{version} ({url})");
+                        }
                     }
                     _ => {}
                 }

@@ -1,3 +1,5 @@
+pub mod github;
+pub mod gitlab;
 pub mod lexer;
 pub mod parser;
 
@@ -7,10 +9,11 @@ use ufmt::derive::uDebug;
 
 #[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd, uDebug)]
 pub enum Source {
-    Github { user: String, repository: String },
-    Kernel { user: String, repository: String },
-    Savannah { repository: String },
-    Sourceware { repository: String },
+    Github { user: String, repo: String },
+    Gitlab { user: String, repo: String },
+    Kernel { user: String, repo: String },
+    Savannah { repo: String },
+    Sourceware { repo: String },
 }
 
 impl Source {

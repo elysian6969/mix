@@ -95,32 +95,29 @@ impl Graph {
         Ok(graph)
     }
 
-    pub fn get(
-        &self,
-        package_id: &PackageId,
-    ) -> Option<(&Node, &BTreeMap<PackageId, Relationship>)> {
+    pub fn get(&self, package_id: &PackageId) -> Option<Entry<'_>> {
         self.nodes.get(package_id).and_then(|node| {
             self.relationships
                 .get(package_id)
-                .map(|relationships| (node, relationships))
+                .map(|relationships| Entry {
+                    graph: self,
+                    node,
+                    relationships,
+                })
         })
     }
 
-    pub fn dependency_order<'graph>(
-        &'graph self,
-        package_id: &'graph PackageId,
-    ) -> Vec<&'graph PackageId> {
+    pub fn order<'graph>(&'graph self, package_id: &'graph PackageId) -> Order<'graph> {
         let mut visited_packages = HashSet::new();
-        let mut dependency_order = Vec::new();
+        let mut order = Vec::new();
 
-        depends_resolve(
-            &self,
-            &package_id,
-            &mut visited_packages,
-            &mut dependency_order,
-        );
+        depends_resolve(&self, &package_id, &mut visited_packages, &mut order);
 
-        dependency_order
+        Order {
+            graph: self,
+            visited: visited_packages,
+            order,
+        }
     }
 
     pub fn display_tree<'graph, 'symbols>(
@@ -136,13 +133,66 @@ impl Graph {
     }
 }
 
+pub struct Entry<'graph> {
+    graph: &'graph Graph,
+    pub node: &'graph Node,
+    pub relationships: &'graph BTreeMap<PackageId, Relationship>,
+}
+
+impl<'graph> Entry<'graph> {
+    pub fn node(&'graph self) -> &'graph Node {
+        self.node
+    }
+
+    pub fn relationships(&'graph self) -> &'graph BTreeMap<PackageId, Relationship> {
+        self.relationships
+    }
+}
+
+pub struct Order<'graph> {
+    graph: &'graph Graph,
+    visited: HashSet<&'graph PackageId>,
+    order: Vec<&'graph PackageId>,
+}
+
+impl<'graph> Order<'graph> {
+    pub fn get(&self, package_id: &PackageId) -> Option<Entry<'_>> {
+        self.visited
+            .get(package_id)
+            .and_then(|_| self.graph.get(package_id))
+    }
+
+    pub fn iter(&self) -> OrderIter {
+        OrderIter {
+            order: self,
+            iter: self.order.iter(),
+        }
+    }
+}
+
+pub struct OrderIter<'graph> {
+    order: &'graph Order<'graph>,
+    iter: std::slice::Iter<'graph, &'graph PackageId>,
+}
+
+impl<'graph> Iterator for OrderIter<'graph> {
+    type Item = Entry<'graph>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.iter.next() {
+            Some(package_id) => self.order.get(package_id),
+            None => None,
+        }
+    }
+}
+
 fn depends_resolve<'graph>(
     graph: &'graph Graph,
     package_id: &'graph PackageId,
     visited_packages: &mut HashSet<&'graph PackageId>,
     dependency_order: &mut Vec<&'graph PackageId>,
 ) {
-    if let Some((_node, relationships)) = graph.get(package_id) {
+    if let Some(entry) = graph.get(package_id) {
         let visited = !visited_packages.insert(package_id);
 
         if visited {
@@ -151,7 +201,7 @@ fn depends_resolve<'graph>(
             return;
         }
 
-        for (package_id, _relationship) in relationships.iter().rev() {
+        for (package_id, _relationship) in entry.relationships.iter().rev() {
             depends_resolve(graph, package_id, visited_packages, dependency_order);
         }
 

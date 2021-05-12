@@ -91,21 +91,21 @@ fn print_tree<'graph, W>(
 where
     W: ufmt::uWrite + ?Sized,
 {
-    if let Some((node, relationships)) = graph.get(package_id) {
+    if let Some(entry) = graph.get(package_id) {
         print_branches(f, levels, symbols)?;
 
-        let visited = print_package(f, graph, node, visited_packages)?;
+        let visited = print_package(f, graph, entry.node, visited_packages)?;
 
         // don't recursively enumerate dependencies
         // zero dependencies means we needn't print anything
-        if visited || relationships.is_empty() {
+        if visited || entry.relationships.is_empty() {
             return Ok(());
         }
 
-        for (index, (package_id, _relationships)) in relationships.iter().enumerate() {
+        for (index, (package_id, _relationships)) in entry.relationships.iter().enumerate() {
             // the last package is the tail
             // inbetween is either a tee or a down
-            let is_last = index == relationships.len().saturating_sub(1);
+            let is_last = index == entry.relationships.len().saturating_sub(1);
 
             levels.push(!is_last);
             print_tree(f, graph, package_id, symbols, visited_packages, levels)?;

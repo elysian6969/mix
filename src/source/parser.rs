@@ -100,32 +100,41 @@ impl<'input> Parser<'input> {
         Ok(segment)
     }
 
+    /// parse a `user/repo`
+    fn user_repo(&mut self) -> Result<(String, String), Error<'input>> {
+        let user = self.segment_slash()?;
+        let repo = self.segment()?;
+
+        Ok((user, repo))
+    }
+
+    /// helper function to clean up code i guess?
+    fn user_repo_with<F, O>(&mut self, callback: F) -> Result<O, Error<'input>>
+    where
+        F: FnOnce(String, String) -> O,
+    {
+        let (user, repo) = self.user_repo()?;
+
+        Ok(callback(user, repo))
+    }
+
     /// parse a source
     pub fn parse(&'input mut self) -> Result<Source, Error<'input>> {
         let scheme = self.scheme()?;
 
         match scheme.as_str() {
-            "github" => {
-                let user = self.segment_slash()?;
-                let repository = self.segment()?;
-
-                Ok(Source::Github { user, repository })
-            }
-            "kernel" => {
-                let user = self.segment_slash()?;
-                let repository = self.segment()?;
-
-                Ok(Source::Kernel { user, repository })
-            }
+            "github" => self.user_repo_with(|user, repo| Source::Github { user, repo }),
+            "gitlab" => self.user_repo_with(|user, repo| Source::Gitlab { user, repo }),
+            "kernel" => self.user_repo_with(|user, repo| Source::Kernel { user, repo }),
             "savannah" => {
-                let repository = self.segment()?;
+                let repo = self.segment()?;
 
-                Ok(Source::Savannah { repository })
+                Ok(Source::Savannah { repo })
             }
             "sourceware" => {
-                let repository = self.segment()?;
+                let repo = self.segment()?;
 
-                Ok(Source::Sourceware { repository })
+                Ok(Source::Sourceware { repo })
             }
             _ => Err(Error::UnknownScheme),
         }

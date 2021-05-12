@@ -9,7 +9,6 @@
 pub mod atom;
 pub mod config;
 pub mod git;
-pub mod github;
 pub mod global;
 pub mod ops;
 pub mod options;
@@ -35,7 +34,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> crate::Result<()> {
-    let prefix = Path::new("/data/data/com.termux/files/usr/unknown");
+    let prefix = Path::new("/unknown");
     let metadata = global::Metadata::open(&prefix.join("unknown.yml")).await?;
     let config = Config::builder(prefix)
         .repositories(metadata.repositories)
