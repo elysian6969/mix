@@ -1,7 +1,7 @@
 use crate::config::Config;
 use semver::{Version, VersionReq};
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use ufmt::derive::uDebug;
 use url::Url;
@@ -30,8 +30,6 @@ pub mod metadata {
 }
 
 impl<'repo> Repo<'repo> {
-    pub const BASE_URL: &'static str = "https://api.github.com";
-
     pub fn new(user: &'repo str, repo: &'repo str) -> Self {
         Self { user, repo }
     }
@@ -45,33 +43,35 @@ impl<'repo> Repo<'repo> {
             cache
         });
 
-        let mut url = String::from(Self::BASE_URL);
-        let _ = ufmt::uwrite!(url, "/repos/{}/{}/tags", self.user, self.repo);
+        let url = ufmt::uformat!("{}/repos/{}/{}/tags", github_url(), self.user, self.repo)
+            .expect("infallible");
 
-        fs::create_dir_all(path.parent().expect("infallible")).await?;
         config.client().download(config, &path, url).await?;
+
         Tags::from_path(path).await
     }
 }
 
 #[derive(Debug)]
 pub struct Tags {
-    tags: BTreeMap<Version, Url>,
+    tags: BTreeMap<Version, Value>,
 }
 
 impl Tags {
     pub async fn from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
-        let buffer = fs::read(path).await?;
+        let buffer = fs::read(path.as_ref()).await?;
         let metadata: Vec<metadata::Tag> = serde_json::from_slice(&buffer)?;
         let tags = metadata
             .into_iter()
             .flat_map(|metadata| {
                 let version = metadata.name.as_ref()?;
                 let version = crate::version::parse(version).ok()?;
-                let url = metadata.tarball_url.or(metadata.zipball_url)?;
+                let url = metadata.tarball_url?;
                 let url = Url::parse(&url).ok()?;
+                let file_name = format!("v{}.tar.gz", version);
+                let path = path.as_ref().with_file_name(file_name);
 
-                Some((version, url))
+                Some((version, Value { path, url }))
             })
             .collect();
 
@@ -81,9 +81,47 @@ impl Tags {
     pub fn matches<'tags>(
         &'tags self,
         requirement: &'tags VersionReq,
-    ) -> impl Iterator<Item = (&'tags Version, &'tags Url)> {
+    ) -> impl Iterator<Item = Tag<'tags>> {
         self.tags
             .iter()
-            .filter(move |(version, _url)| requirement.matches(&version))
+            .filter(move |(version, _value)| requirement.matches(&version))
+            .map(|(version, value)| Tag { version, value })
     }
+}
+
+#[derive(Debug)]
+struct Value {
+    path: PathBuf,
+    url: Url,
+}
+
+#[derive(Debug)]
+pub struct Tag<'tags> {
+    version: &'tags Version,
+    value: &'tags Value,
+}
+
+impl<'tags> Tag<'tags> {
+    pub fn path(&self) -> &Path {
+        self.value.path.as_path()
+    }
+
+    pub fn url(&self) -> &Url {
+        &self.value.url
+    }
+
+    pub fn version(&self) -> &Version {
+        &self.version
+    }
+
+    pub async fn download(&self, config: &Config) -> crate::Result<()> {
+        config
+            .client()
+            .download(config, self.path(), self.url())
+            .await
+    }
+}
+
+pub const fn github_url() -> &'static str {
+    "https://api.github.com"
 }

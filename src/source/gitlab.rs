@@ -1,7 +1,7 @@
 use crate::config::Config;
 use semver::{Version, VersionReq};
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokio::fs;
 use ufmt::derive::uDebug;
 use url::Url;
@@ -59,28 +59,27 @@ impl<'base, 'repo> Repo<'base, 'repo> {
             cache.push("gitlab");
             cache.push(self.user);
             cache.push(self.repo);
-            cache.push("repository");
-            cache.push("tags");
+            cache.push("tags.json");
             cache
         });
 
-        let mut url = self.base.to_string();
-        let _ = ufmt::uwrite!(
-            url,
-            "/v4/projects/{}%2F{}/repository/tags",
+        let url = ufmt::uformat!(
+            "{}/v4/projects/{}%2F{}/repository/tags",
+            self.base,
             self.user,
             self.repo
-        );
+        )
+        .expect("infallible");
 
-        fs::create_dir_all(path.parent().expect("infallible")).await?;
         config.client().download(config, &path, url).await?;
+
         Tags::from_path(self.base, self.user, self.repo, path).await
     }
 }
 
 #[derive(Debug)]
 pub struct Tags {
-    tags: BTreeMap<Version, Url>,
+    tags: BTreeMap<Version, Value>,
 }
 
 impl Tags {
@@ -90,7 +89,7 @@ impl Tags {
         repo: &str,
         path: impl AsRef<Path>,
     ) -> crate::Result<Self> {
-        let buffer = fs::read(path).await?;
+        let buffer = fs::read(path.as_ref()).await?;
         let metadata: Vec<metadata::Tag> = serde_json::from_slice(&buffer)?;
         let tags = metadata
             .into_iter()
@@ -98,12 +97,20 @@ impl Tags {
                 let version = metadata.name?;
                 let version = crate::version::parse(&version).ok()?;
                 let sha = metadata.target?;
-                let url = format!(
-                    "{base}/v4/projects/{user}%2F{repo}/repository/archive.tar.gz?sha={sha}"
-                );
-                let url = Url::parse(&url).ok()?;
+                let url = ufmt::uformat!(
+                    "{}/v4/projects/{}%2F{}/repository/archive.tar.gz?sha={}"
+                    base,
+                    user,
+                    repo,
+                    sha,
+                )
+                .ok()?;
 
-                Some((version, url))
+                let url = Url::parse(&url).ok()?;
+                let file_name = format!("v{}.tar.gz", version);
+                let path = path.as_ref().with_file_name(file_name);
+
+                Some((version, Value { path, url }))
             })
             .collect();
 
@@ -113,10 +120,44 @@ impl Tags {
     pub fn matches<'tags>(
         &'tags self,
         requirement: &'tags VersionReq,
-    ) -> impl Iterator<Item = (&'tags Version, &'tags Url)> {
+    ) -> impl Iterator<Item = Tag<'tags>> {
         self.tags
             .iter()
-            .filter(move |(version, _url)| requirement.matches(&version))
+            .filter(move |(version, _value)| requirement.matches(&version))
+            .map(|(version, value)| Tag { version, value })
+    }
+}
+
+#[derive(Debug)]
+struct Value {
+    path: PathBuf,
+    url: Url,
+}
+
+#[derive(Debug)]
+pub struct Tag<'tags> {
+    version: &'tags Version,
+    value: &'tags Value,
+}
+
+impl<'tags> Tag<'tags> {
+    pub fn path(&self) -> &Path {
+        self.value.path.as_path()
+    }
+
+    pub fn url(&self) -> &Url {
+        &self.value.url
+    }
+
+    pub fn version(&self) -> &Version {
+        &self.version
+    }
+
+    pub async fn download(&self, config: &Config) -> crate::Result<()> {
+        config
+            .client()
+            .download(config, self.path(), self.url())
+            .await
     }
 }
 

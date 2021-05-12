@@ -32,6 +32,7 @@ impl Client {
             let mut downloaded = 0;
 
             render(config, path.partial(), display_bytes(downloaded)).await?;
+            fs::create_dir_all(path.partial().parent().expect("infallible")).await?;
 
             let mut destination = File::create(path.partial()).await?;
             let response = self.client.get(url.as_ref()).send().await?;
