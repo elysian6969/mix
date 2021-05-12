@@ -2,7 +2,7 @@ use crate::atom::Atom;
 use crate::config::Config;
 use crate::package::{Graph, PackageId};
 use crate::source::{github, gitlab, Source};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeSet, HashSet};
 
 pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()> {
     let repositories = config.repositories().keys();
@@ -18,19 +18,31 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
                     Source::Github { user, repo } => {
                         let repo = github::Repo::new(user, repo);
                         let tags = repo.tags(config).await?;
-                        let matches: BTreeMap<_, _> = tags.matches(&atom.version).collect();
+                        let matches = tags.matches(&atom.version);
+                        let package_id =
+                            ufmt::uformat!("{}", &entry.node().package_id).expect("infallible");
 
-                        if let Some((version, url)) = matches.last_key_value() {
-                            println!("v{version} ({url})");
+                        if let Some(tag) = matches.oldest() {
+                            println!("[{package_id}] oldest v{}", tag.version());
+                        }
+
+                        if let Some(tag) = matches.newest() {
+                            println!("[{package_id}] newest v{}", tag.version());
                         }
                     }
                     Source::Gitlab { user, repo } => {
                         let repo = gitlab::Repo::new(gitlab::gitlab_url(), user, repo);
                         let tags = repo.tags(config).await?;
-                        let matches: BTreeMap<_, _> = tags.matches(&atom.version).collect();
+                        let matches = tags.matches(&atom.version);
+                        let package_id =
+                            ufmt::uformat!("{}", &entry.node().package_id).expect("infallible");
 
-                        if let Some((version, url)) = matches.last_key_value() {
-                            println!("v{version} ({url})");
+                        if let Some(tag) = matches.oldest() {
+                            println!("[{package_id}] oldest v{}", tag.version());
+                        }
+
+                        if let Some(tag) = matches.newest() {
+                            println!("[{package_id}] newest v{}", tag.version());
                         }
                     }
                     _ => {}

@@ -65,7 +65,7 @@ impl Client {
             }
 
             destination.flush().await?;
-            render(config, path.partial(), "downloaded!").await?;
+            render(config, path.partial(), "downloaded!\n").await?;
             Text::new(Show.to_string()).render(config.shell()).await?;
             fs::rename(path.partial(), path.whole()).await?;
         }

@@ -108,10 +108,16 @@ impl Graph {
     }
 
     pub fn order<'graph>(&'graph self, package_id: &'graph PackageId) -> Order<'graph> {
-        let mut visited_packages = HashSet::new();
+        let mut visited_packages: HashSet<&'graph PackageId> = HashSet::new();
         let mut order = Vec::new();
 
         depends_resolve(&self, &package_id, &mut visited_packages, &mut order);
+
+        let mut visited_order: HashSet<&'graph PackageId> = HashSet::new();
+
+        order
+            .drain_filter(|package_id| visited_order.insert(package_id))
+            .for_each(drop);
 
         Order {
             graph: self,

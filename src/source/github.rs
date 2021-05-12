@@ -1,6 +1,7 @@
 use crate::config::Config;
 use semver::{Version, VersionReq};
-use std::collections::BTreeMap;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use ufmt::derive::uDebug;
@@ -48,7 +49,16 @@ impl<'repo> Repo<'repo> {
 
         config.client().download(config, &path, url).await?;
 
-        Tags::from_path(path).await
+        let result = Tags::from_path(&path).await;
+
+        match result {
+            Ok(tags) => Ok(tags),
+            Err(error) => {
+                fs::remove_dir_all(path).await?;
+
+                Err(error)
+            }
+        }
     }
 }
 
@@ -65,7 +75,12 @@ impl Tags {
             .into_iter()
             .flat_map(|metadata| {
                 let version = metadata.name.as_ref()?;
-                let version = crate::version::parse(version).ok()?;
+                let version = crate::version::parse(version)
+                    .map_err(|error| {
+                        println!("failed to parse {version}: {error:?}");
+                    })
+                    .ok()?;
+
                 let url = metadata.tarball_url?;
                 let url = Url::parse(&url).ok()?;
                 let file_name = format!("v{}.tar.gz", version);
@@ -78,24 +93,52 @@ impl Tags {
         Ok(Tags { tags })
     }
 
-    pub fn matches<'tags>(
-        &'tags self,
-        requirement: &'tags VersionReq,
-    ) -> impl Iterator<Item = Tag<'tags>> {
-        self.tags
+    pub fn matches<'tags>(&'tags self, requirement: &'tags VersionReq) -> Matches<'tags> {
+        let matches = self
+            .tags
             .iter()
             .filter(move |(version, _value)| requirement.matches(&version))
             .map(|(version, value)| Tag { version, value })
+            .collect();
+
+        Matches { matches }
     }
 }
 
 #[derive(Debug)]
+pub struct Matches<'tags> {
+    matches: BTreeSet<Tag<'tags>>,
+}
+
+impl<'tags> Matches<'tags> {
+    pub fn is_empty(&self) -> bool {
+        self.matches.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.matches.len()
+    }
+
+    pub fn iter(&'tags self) -> impl Iterator<Item = &Tag<'tags>> {
+        self.matches.iter()
+    }
+
+    pub fn oldest(&'tags self) -> Option<&Tag<'tags>> {
+        self.matches.first()
+    }
+
+    pub fn newest(&'tags self) -> Option<&Tag<'tags>> {
+        self.matches.last()
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
 struct Value {
     path: PathBuf,
     url: Url,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Tag<'tags> {
     version: &'tags Version,
     value: &'tags Value,
@@ -119,6 +162,18 @@ impl<'tags> Tag<'tags> {
             .client()
             .download(config, self.path(), self.url())
             .await
+    }
+}
+
+impl<'tags> Ord for Tag<'tags> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.version.cmp(&other.version)
+    }
+}
+
+impl<'tags> PartialOrd for Tag<'tags> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 

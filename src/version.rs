@@ -9,7 +9,7 @@ pub fn parse(input: &str) -> Result<'_, semver::Version> {
     Parser::new(input)?.version()
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Error<'input> {
     /// needed more tokens for parsing, but none are available
     UnexpectedEnd,
@@ -124,8 +124,8 @@ impl<'input> Parser<'input> {
 
     /// skip junk
     fn skip_junk(&mut self) -> Result<'input, bool> {
-        match self.peek() {
-            Some(&Token::AlphaNumeric(_)) => self.pop().map(|_| true),
+        match dbg!(self.peek()) {
+            Some(&Token::AlphaNumeric(number)) => self.pop().map(|_| true),
             Some(&Token::Hyphen) => self.pop().map(|_| true),
             Some(&Token::Whitespace(_, _)) => self.pop().map(|_| true),
             _token => Ok(false),
@@ -155,6 +155,7 @@ impl<'input> Parser<'input> {
     pub fn dot_component(&mut self) -> Result<'input, (Option<u64>, bool)> {
         match self.peek() {
             Some(&Token::Dot) => {}
+            Some(&Token::AlphaNumeric("_")) => {}
             _ => return Ok((None, false)),
         }
 
@@ -164,10 +165,11 @@ impl<'input> Parser<'input> {
             .map(|component| (component, component.is_none()))
     }
 
-    /// parse a dot, then a numeric
+    /// parse a dot or underscore, then a numeric
     pub fn dot_numeric(&mut self) -> Result<'input, u64> {
         match self.pop()? {
             Token::Dot => {}
+            Token::AlphaNumeric("_") => {}
             token => return Err(Error::UnexpectedToken(token)),
         }
 
@@ -178,6 +180,7 @@ impl<'input> Parser<'input> {
     pub fn patch_numeric(&mut self) -> Result<'input, u64> {
         match self.pop()? {
             Token::Dot => {}
+            Token::AlphaNumeric("_") => {}
             Token::AlphaNumeric("p") => {}
             token => return Err(Error::UnexpectedToken(token)),
         }
@@ -214,6 +217,7 @@ impl<'input> Parser<'input> {
     fn pre(&mut self) -> Result<'input, Vec<Identifier>> {
         match self.peek() {
             Some(&Token::Hyphen) => {}
+            Some(&Token::AlphaNumeric("_")) => {}
             _token => return Ok(Vec::new()),
         }
 

@@ -1,6 +1,7 @@
 // NOTE: rustc oh phone is old
 #![allow(stable_features)]
 #![feature(crate_visibility_modifier)]
+#![feature(drain_filter)]
 #![feature(format_args_capture)]
 #![feature(map_first_last)]
 #![feature(never_type)]
@@ -34,7 +35,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> crate::Result<()> {
-    let prefix = Path::new("/unknown");
+    let prefix = Path::new("/data/data/com.termux/files/usr/unknown");
     let metadata = global::Metadata::open(&prefix.join("unknown.yml")).await?;
     let config = Config::builder(prefix)
         .repositories(metadata.repositories)
