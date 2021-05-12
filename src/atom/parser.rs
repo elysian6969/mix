@@ -36,9 +36,9 @@ impl<'semver> ufmt::uDebug for Semver<'semver> {
     where
         W: ufmt::uWrite + ?Sized,
     {
-        let buf = format!("{:?}", self.0);
+        let buffer = format!("{:?}", self.0);
 
-        ufmt::uwrite!(f, "{}", buf)
+        ufmt::uwrite!(f, "{}", buffer)
     }
 }
 

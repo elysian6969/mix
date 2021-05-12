@@ -61,9 +61,7 @@ impl<D: ufmt::uDisplay> Text<D> {
     }
 
     pub async fn render(&self, shell: &Shell) -> crate::Result<()> {
-        let mut buffer = String::new();
-
-        ufmt::uwrite!(&mut buffer, "{}", self.display)?;
+        let buffer = ufmt::uformat!("{}", self.display)?;
 
         shell.write_all(buffer.as_bytes()).await?;
         shell.flush().await?;

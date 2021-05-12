@@ -19,19 +19,9 @@ pub enum Source {
 impl Source {
     pub fn parse(input: &str) -> crate::Result<Source> {
         let source = Parser::new(input)
-            .map_err(|error| {
-                let mut buffer = String::from("TODO: implement Error: ");
-                let _ = ufmt::uwrite!(buffer, "{:?}", error);
-
-                buffer
-            })?
+            .map_err(|error| ufmt::uformat!("TODO: {:?}", error).expect("infallible"))?
             .parse()
-            .map_err(|error| {
-                let mut buffer = String::from("TODO: implement Error: ");
-                let _ = ufmt::uwrite!(buffer, "{:?}", error);
-
-                buffer
-            })?;
+            .map_err(|error| ufmt::uformat!("TODO: {:?}", error).expect("infallible"))?;
 
         Ok(source)
     }

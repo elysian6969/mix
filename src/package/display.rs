@@ -113,8 +113,7 @@ where
         }
     } else {
         // TODO: sanitise the tree lmao?
-        let mut buffer = String::new();
-        let _ = ufmt::uwrite!(&mut buffer, "{}", package_id);
+        let buffer = ufmt::uformat!("{}", package_id).expect("infallible");
 
         println!("error: missing {buffer}");
     }

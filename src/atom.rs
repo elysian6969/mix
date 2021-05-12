@@ -14,19 +14,9 @@ pub struct Atom {
 impl Atom {
     pub fn parse(input: &str) -> crate::Result<Self> {
         let source = Parser::new(input)
-            .map_err(|error| {
-                let mut buf = String::new();
-                let _ = ufmt::uwrite!(buf, "{:?}", error);
-
-                buf
-            })?
+            .map_err(|error| ufmt::uformat!("TODO: {:?}", error).expect("infallible"))?
             .parse()
-            .map_err(|error| {
-                let mut buf = String::new();
-                let _ = ufmt::uwrite!(buf, "{:?}", error);
-
-                buf
-            })?;
+            .map_err(|error| ufmt::uformat!("TODO: {:?}", error).expect("infallible"))?;
 
         Ok(source)
     }
@@ -39,9 +29,9 @@ impl<'version> ufmt::uDebug for Version<'version> {
     where
         W: ufmt::uWrite + ?Sized,
     {
-        let buf = format!("{:?}", self.0);
+        let buffer = format!("{:?}", self.0);
 
-        ufmt::uwrite!(f, "{}", buf)
+        ufmt::uwrite!(f, "{}", buffer)
     }
 }
 
@@ -50,9 +40,9 @@ impl<'version> ufmt::uDisplay for Version<'version> {
     where
         W: ufmt::uWrite + ?Sized,
     {
-        let buf = format!("{}", self.0);
+        let buffer = self.0.to_string();
 
-        ufmt::uwrite!(f, "{}", buf)
+        ufmt::uwrite!(f, "{}", buffer)
     }
 }
 

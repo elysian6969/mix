@@ -60,8 +60,8 @@ async fn into_atoms(config: &Config, args: Arguments) -> HashSet<Atom> {
                 atoms.insert(atom);
             }
             Err(ref error) => {
-                let buf = format!("{error:?}");
-                let _ = Text::new(buf).render(config.shell()).await;
+                let buffer = format!("{error:?}");
+                let _ = Text::new(buffer).render(config.shell()).await;
             }
         }
     }
