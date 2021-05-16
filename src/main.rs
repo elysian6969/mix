@@ -38,7 +38,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> crate::Result<()> {
     let prefix = Path::new("/milk");
-    let metadata = global::Metadata::open(&prefix.join("unknown.yml")).await?;
+    let metadata = global::Metadata::open(&prefix.join("metadata.yml")).await?;
     let config = Config::builder(prefix)
         .repositories(metadata.repositories)
         .build()?;
