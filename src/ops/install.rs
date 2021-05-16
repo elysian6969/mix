@@ -23,11 +23,11 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
                             ufmt::uformat!("{}", &entry.node().package_id).expect("infallible");
 
                         if let Some(tag) = matches.oldest() {
-                            println!("[{package_id}] oldest v{}", tag.version());
+                            println!("[{package_id}] oldest v{}\n - {}", tag.version(), tag.url());
                         }
 
                         if let Some(tag) = matches.newest() {
-                            println!("[{package_id}] newest v{}", tag.version());
+                            println!("[{package_id}] newest v{}\n - {}", tag.version(), tag.url());
                         }
                     }
                     Source::Gitlab { user, repo } => {
@@ -38,11 +38,11 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
                             ufmt::uformat!("{}", &entry.node().package_id).expect("infallible");
 
                         if let Some(tag) = matches.oldest() {
-                            println!("[{package_id}] oldest v{}", tag.version());
+                            println!("[{package_id}] oldest v{}\n - {}", tag.version(), tag.url());
                         }
 
                         if let Some(tag) = matches.newest() {
-                            println!("[{package_id}] newest v{}", tag.version());
+                            println!("[{package_id}] newest v{}\n - {}", tag.version(), tag.url());
                         }
                     }
                     _ => {}

@@ -105,10 +105,13 @@ impl Tags {
             .into_iter()
             .flat_map(|metadata| {
                 let version = metadata.name?;
-                let version = crate::version::parse(&version)
-                    .map_err(|error| {
-                        println!("failed to parse {version}: {error:?}");
-                    })
+                let version = crate::version::any_version(&version)
+                    /*.map_err(|error| {
+                        println!(
+                            "failed to parse {version}: {:?}",
+                            ufmt::uformat!("{:?}", error).unwrap()
+                        );
+                    })*/
                     .ok()?;
 
                 let sha = metadata.target?;

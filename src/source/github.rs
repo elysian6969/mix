@@ -75,10 +75,13 @@ impl Tags {
             .into_iter()
             .flat_map(|metadata| {
                 let version = metadata.name.as_ref()?;
-                let version = crate::version::parse(version)
-                    .map_err(|error| {
-                        println!("failed to parse {version}: {error:?}");
-                    })
+                let version = crate::version::any_version(version)
+                    /*.map_err(|error| {
+                        println!(
+                            "failed to parse {version}: {:?}",
+                            ufmt::uformat!("{:?}", error).unwrap()
+                        );
+                    })*/
                     .ok()?;
 
                 let url = metadata.tarball_url?;
