@@ -12,10 +12,12 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub fn repository(mut self, path: impl Into<PathBuf>, url: impl AsRef<str>) -> Self {
+    pub fn repository(mut self, path: impl Into<String>, url: impl AsRef<str>) -> Self {
         match Url::parse(url.as_ref()) {
             Ok(url) => {
-                self.repositories.insert(path.into(), url);
+                let path = self.prefix.join("repositories").join(path.into());
+
+                self.repositories.insert(path, url);
             }
             Err(err) => self.error = self.error.and(Err(Box::new(err))),
         }
@@ -25,7 +27,7 @@ impl Builder {
 
     pub fn repositories(
         mut self,
-        repositories: impl IntoIterator<Item = (impl Into<PathBuf>, impl AsRef<str>)>,
+        repositories: impl IntoIterator<Item = (impl Into<String>, impl AsRef<str>)>,
     ) -> Self {
         for (path, url) in repositories {
             self = self.repository(path, url);

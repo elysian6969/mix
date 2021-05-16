@@ -6,7 +6,7 @@ use url::Url;
 
 #[derive(Deserialize)]
 pub struct Metadata {
-    pub repositories: BTreeMap<PathBuf, Url>,
+    pub repositories: BTreeMap<String, Url>,
 }
 
 impl Metadata {
@@ -23,7 +23,7 @@ impl ufmt::uDebug for Metadata {
     where
         W: ufmt::uWrite + ?Sized,
     {
-        struct Repositories<'repos>(&'repos BTreeMap<PathBuf, Url>);
+        struct Repositories<'repos>(&'repos BTreeMap<String, Url>);
 
         impl<'repos> ufmt::uDebug for Repositories<'repos> {
             fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
@@ -31,7 +31,7 @@ impl ufmt::uDebug for Metadata {
                 W: ufmt::uWrite + ?Sized,
             {
                 f.debug_map()?
-                    .entries(self.0.iter().map(|(path, url)| (path, url.as_str())))?
+                    .entries(self.0.iter().map(|(name, url)| (name, url.as_str())))?
                     .finish()
             }
         }
