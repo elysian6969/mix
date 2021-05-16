@@ -1,7 +1,6 @@
 [package]
-name    = "manager"
+name    = "mixer"
 version = "0.0.0"
-authors = ["saraph"]
 edition = "2018"
 
 [dependencies]
