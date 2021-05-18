@@ -1,6 +1,7 @@
 use crate::shell::Text;
 use crate::Config;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -10,12 +11,12 @@ pub async fn extract(
     config: &Config,
     src: impl AsRef<Path>,
     dst: impl AsRef<Path>,
-) -> crate::Result<()> {
+) -> crate::Result<Vec<PathBuf>> {
     let buffer = ufmt::uformat!(" -> extracting {:?}\n", src.as_ref()).expect("infallible");
 
     Text::new(buffer).render(config.shell()).await?;
 
-    fs::create_dir_all(dst.as_ref()).await?;
+    let _ = fs::create_dir_all(dst.as_ref()).await;
 
     let mut child = Command::new("bsdtar")
         .arg("xfv")
@@ -44,13 +45,17 @@ pub async fn extract(
         let _ = child.wait().await;
     });
 
+    let mut entries = vec![];
+
     while let Some(line) = stderr.next_line().await? {
-        //println!("line: {}", line);
+        let entry = line.trim_start_matches('x').trim().into();
+
+        entries.push(entry);
     }
 
     while let Some(line) = stdout.next_line().await? {
         //println!("line: {}", line);
     }
 
-    Ok(())
+    Ok(entries)
 }

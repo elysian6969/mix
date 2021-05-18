@@ -4,6 +4,7 @@ use crate::external::tar;
 use crate::package::{Entry, Graph, PackageId};
 use crate::shell::Text;
 use crate::source::{github, gitlab, Source};
+use crate::wrap::autotools::Autotools;
 use semver::{Version, VersionReq};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -58,8 +59,24 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
                     .expect("infallible");
 
                 Text::new(buffer).render(config.shell()).await?;
-                tar::extract(config, &source.1, &build_dir).await?;
-                fs::remove_dir_all(&build_dir).await?;
+
+                let _ = fs::remove_dir_all(&build_dir).await;
+                let entries = tar::extract(config, &source.1, &build_dir).await?;
+
+                if let Some(root) = entries.iter().next() {
+                    let root = build_dir.join(&root);
+                    let mut autotools = Autotools::new(&root);
+
+                    autotools.execute(config).await?;
+                }
+
+                // implement tracking to reduce i/o
+                // {build}/{group}/{package}/{version}
+                let _ = fs::remove_dir_all(&build_dir).await;
+
+                for ancestor in build_dir.ancestors().take(2) {
+                    let _ = fs::remove_dir(&ancestor).await;
+                }
             }
         }
     }
@@ -123,10 +140,10 @@ async fn download_github(
 
         tag.download(config).await?;
 
-        return Ok((tag.version().clone(), tag.path().to_path_buf()));
+        Ok((tag.version().clone(), tag.path().to_path_buf()))
+    } else {
+        Err("no source".into())
     }
-
-    Err("no source")?
 }
 
 async fn download_gitlab(
@@ -156,8 +173,8 @@ async fn download_gitlab(
 
         tag.download(config).await?;
 
-        return Ok((tag.version().clone(), tag.path().to_path_buf()));
+        Ok((tag.version().clone(), tag.path().to_path_buf()))
+    } else {
+        Err("no source".into())
     }
-
-    Err("no source")?
 }
