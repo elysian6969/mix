@@ -7,6 +7,7 @@ use tokio::fs;
 use ufmt::derive::uDebug;
 use url::Url;
 
+#[derive(uDebug)]
 pub struct Repo<'base, 'repo> {
     base: &'base str,
     user: &'repo str,

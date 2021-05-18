@@ -10,7 +10,7 @@
 
 pub mod atom;
 pub mod config;
-pub mod git;
+pub mod external;
 pub mod global;
 pub mod ops;
 pub mod options;

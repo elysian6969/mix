@@ -100,7 +100,6 @@ impl Graph {
             self.relationships
                 .get(package_id)
                 .map(|relationships| Entry {
-                    graph: self,
                     node,
                     relationships,
                 })
@@ -140,7 +139,6 @@ impl Graph {
 }
 
 pub struct Entry<'graph> {
-    graph: &'graph Graph,
     pub node: &'graph Node,
     pub relationships: &'graph BTreeMap<PackageId, Relationship>,
 }

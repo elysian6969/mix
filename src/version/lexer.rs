@@ -97,36 +97,25 @@ impl<'a> Token<'a> {
 
     /// is junk piror to an actual version
     pub fn is_junk(&self) -> bool {
-        match self.kind() {
-            Kind::Numeric(_) => false,
-            _ => true,
-        }
+        !matches!(self.kind(), Kind::Numeric(_))
     }
 
     /// is a seperator
     pub fn is_seperator(&self) -> bool {
-        match self.kind() {
-            Kind::Dot => true,
-            Kind::Hyphen => true,
-            Kind::Underscore => true,
-            _ => false,
-        }
+        matches!(self.kind(), Kind::Dot | Kind::Hyphen | Kind::Underscore)
     }
 
     /// is whitespace
     pub fn is_whitespace(&self) -> bool {
-        match self.kind() {
-            Kind::Whitespace => true,
-            _ => false,
-        }
+        matches!(self.kind(), Kind::Whitespace)
     }
 
     /// is wildcard
     pub fn is_wildcard(&self) -> bool {
-        match self.kind() {
-            Kind::Star | Kind::Alpha("X") | Kind::Alpha("x") => true,
-            _ => false,
-        }
+        matches!(
+            self.kind(),
+            Kind::Star | Kind::Alpha("X") | Kind::Alpha("x")
+        )
     }
 }
 

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tokio::fs;
 use url::Url;
 

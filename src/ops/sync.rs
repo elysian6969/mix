@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::git;
+use crate::external::git;
 
 pub async fn sync(config: &Config) -> crate::Result<()> {
     for (path, url) in config.repositories().iter() {

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::process::Command as StdCommand;
 use tokio::process::Command;
 use ufmt::derive::uDebug;
@@ -72,8 +71,8 @@ impl Autotools {
         command.args(self.get_defines());
         command.args(self.get_includes());
 
-        let args: Vec<&str> = command.get_args().flat_map(|arg| arg.to_str()).collect();
-        let args = args.join(" ");
+        //let args: Vec<&str> = command.get_args().flat_map(|arg| arg.to_str()).collect();
+        //let args = args.join(" ");
 
         let mut command = Command::from(command);
         let mut child = command.spawn()?;

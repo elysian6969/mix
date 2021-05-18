@@ -1,5 +1,6 @@
 use super::lexer::{Kind, Lexer, Token};
 use super::{lexer, Version};
+use semver::Identifier;
 use std::mem;
 use ufmt::derive::uDebug;
 
@@ -140,7 +141,7 @@ impl<'a> Parser<'a> {
         }
 
         self.pop()?;
-        self.numeric().or_else(|_| Ok(0))
+        self.numeric().or(Ok(0))
     }
 
     /// parse a numeric
@@ -165,14 +166,110 @@ impl<'a> Parser<'a> {
         self.numeric()
     }
 
-    /// parse a seperator, then a numeric
+    /// optionally parse a seperator, then a numeric
     pub fn seperator_numeric(&mut self) -> Result<u64, Error<'a>> {
-        match self.pop() {
-            Ok(token) if token.is_seperator() => {}
+        match self.peek() {
+            Some(token) if token.is_seperator() => {}
             _ => return Ok(0),
         }
 
+        self.pop()?;
         self.numeric()
+    }
+
+    /// parse an string identifier
+    ///
+    /// `foo`, or `bar`, or `beta-1`
+    pub fn identifier(&mut self) -> Result<Identifier, Error<'a>> {
+        let token = self.peek();
+        let ident = match token.map(|token| token.kind()) {
+            Some(Kind::Alpha(alpha)) => {
+                let mut ident = alpha.to_string();
+
+                // pop the alpha
+                self.pop()?;
+
+                loop {
+                    match self.peek().map(|token| token.kind()) {
+                        // FIXME: unreachable on first iteration
+                        Some(Kind::Alpha(alpha)) => {
+                            ident.push_str(&alpha.to_string());
+
+                            // pop the alpha
+                            self.pop()?;
+                        }
+                        Some(Kind::Numeric(numeric)) => {
+                            ident.push_str(&numeric.to_string());
+
+                            // pop the numeric
+                            self.pop()?;
+                        }
+                        _ => break,
+                    }
+                }
+
+                Identifier::AlphaNumeric(ident)
+            }
+            Some(Kind::Numeric(numeric)) => Identifier::Numeric(*numeric),
+            Some(_) => return Err(Error::UnexpectedToken(*token.unwrap())),
+            None => return Err(Error::UnexpectedEnd),
+        };
+
+        if let Some(Kind::Hyphen) = self.peek().map(|token| token.kind()) {
+            // pop the peeked hyphen
+            self.pop()?;
+
+            // concat with any following identifiers
+            let mut ident = ident.to_string();
+
+            ident.push('-');
+            ident.push_str(&self.identifier()?.to_string());
+
+            Ok(Identifier::AlphaNumeric(ident))
+        } else {
+            Ok(ident)
+        }
+    }
+
+    /// parse all pre-release identifiers, separated by dots
+    ///
+    /// `abcdef.1234`
+    fn pre(&mut self) -> Result<Vec<Identifier>, Error<'a>> {
+        if let Some(Kind::Hyphen) = self.peek().map(|token| token.kind()) {
+            // pop the hyphen
+            self.pop()?;
+        }
+
+        self.parts()
+    }
+
+    /// parse a dot-separated set of identifiers
+    fn parts(&mut self) -> Result<Vec<Identifier>, Error<'a>> {
+        let mut parts = vec![self.identifier()?];
+
+        while let Some(Kind::Dot) = self.peek().map(|token| token.kind()) {
+            // pop the dot
+            self.pop()?;
+
+            parts.push(self.identifier()?);
+        }
+
+        Ok(parts)
+    }
+
+    /// optionally parse build metadata
+    ///
+    /// `+abcdef`
+    fn plus_build_metadata(&mut self) -> Result<Vec<Identifier>, Error<'a>> {
+        match self.peek().map(|token| token.kind()) {
+            Some(Kind::Plus) => {
+                // pop the plus
+                self.pop()?;
+            }
+            _ => return Ok(vec![]),
+        }
+
+        self.parts()
     }
 
     /// parse any version
@@ -183,12 +280,22 @@ impl<'a> Parser<'a> {
         let minor = self.seperator_numeric()?;
         let patch = self.patch_numeric()?;
 
+        let pre = match self.pre() {
+            Ok(pre) => pre,
+            Err(_) => Vec::new(),
+        };
+
+        let build = match self.plus_build_metadata() {
+            Ok(build) => build,
+            Err(_) => Vec::new(),
+        };
+
         Ok(Version {
             major,
             minor,
             patch,
-            pre: Vec::new(),
-            build: Vec::new(),
+            pre,
+            build,
         })
     }
 

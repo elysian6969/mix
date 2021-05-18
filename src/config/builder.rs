@@ -1,7 +1,8 @@
-use super::{Client, Config};
+use super::{Client, Config, Ref};
 use crate::shell::Shell;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use url::Url;
 
 pub struct Builder {
@@ -48,13 +49,13 @@ impl Builder {
             .user_agent(self.user_agent)
             .build()?;
 
-        Ok(Config {
+        Ok(Config(Arc::new(Ref {
             client: Client { client },
             build: self.prefix.join("build"),
             cache: self.prefix.join("cache"),
             prefix: self.prefix,
             repositories: self.repositories,
             shell: Shell::default(),
-        })
+        })))
     }
 }
