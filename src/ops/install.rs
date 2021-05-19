@@ -1,10 +1,11 @@
 use crate::atom::Atom;
 use crate::config::Config;
+use crate::external::autotools::Autotools;
 use crate::external::tar;
 use crate::package::{Entry, Graph, PackageId};
 use crate::shell::Text;
 use crate::source::{github, gitlab, Source};
-use crate::wrap::autotools::Autotools;
+use crossterm::style::Colorize;
 use semver::{Version, VersionReq};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -55,8 +56,13 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
                     path
                 });
 
-                let buffer = ufmt::uformat!("{}/{} {:?}\n", group_id, package_id, build_dir)
-                    .expect("infallible");
+                let buffer = ufmt::uformat!(
+                    "{}/{} {:?}\n",
+                    group_id.as_str().blue().to_string(),
+                    package_id.as_str().green().to_string(),
+                    build_dir
+                )
+                .expect("infallible");
 
                 Text::new(buffer).render(config.shell()).await?;
 
@@ -65,9 +71,12 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
 
                 if let Some(root) = entries.iter().next() {
                     let root = build_dir.join(&root);
-                    let mut autotools = Autotools::new(&root);
 
-                    autotools.execute(config).await?;
+                    if root.join("configure").exists() {
+                        let mut autotools = Autotools::new(&root);
+
+                        autotools.execute(config).await?;
+                    }
                 }
 
                 // implement tracking to reduce i/o

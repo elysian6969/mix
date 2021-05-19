@@ -6,6 +6,7 @@
 #![feature(format_args_capture)]
 #![feature(map_first_last)]
 #![feature(never_type)]
+#![feature(option_result_unwrap_unchecked)]
 #![feature(str_split_once)]
 
 pub mod atom;
@@ -20,7 +21,6 @@ pub mod shell;
 pub mod source;
 pub mod util;
 pub mod version;
-pub mod wrap;
 
 pub const fn user_agent() -> &'static str {
     concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"))

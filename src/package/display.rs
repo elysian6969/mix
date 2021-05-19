@@ -49,7 +49,7 @@ where
     ufmt::uwriteln!(
         f,
         "{}/{}{}",
-        node.group_id.as_str().green().to_string(),
+        node.group_id.as_str().blue().to_string(),
         node.package_id.as_str().green().to_string(),
         star,
     )?;

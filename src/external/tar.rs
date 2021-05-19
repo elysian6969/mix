@@ -1,31 +1,39 @@
+use super::process::{Command, Stdio};
 use crate::shell::Text;
 use crate::Config;
+use crossterm::style::Colorize;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::Stdio;
 use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 
 pub async fn extract(
     config: &Config,
     src: impl AsRef<Path>,
     dst: impl AsRef<Path>,
 ) -> crate::Result<Vec<PathBuf>> {
-    let buffer = ufmt::uformat!(" -> extracting {:?}\n", src.as_ref()).expect("infallible");
+    let buffer = ufmt::uformat!(
+        " -> {} {:?}\n",
+        "extract".yellow().to_string(),
+        src.as_ref()
+    )
+    .expect("infallible");
 
     Text::new(buffer).render(config.shell()).await?;
 
     let _ = fs::create_dir_all(dst.as_ref()).await;
 
-    let mut child = Command::new("bsdtar")
+    let mut command = Command::new("bsdtar");
+
+    command
         .arg("xfv")
         .arg(src.as_ref())
         .current_dir(dst)
         .stderr(Stdio::piped())
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .spawn()?;
+        .stdout(Stdio::piped());
+
+    let mut child = command.spawn()?;
 
     let stderr = child
         .stderr
