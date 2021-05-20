@@ -33,6 +33,7 @@ pub mod build {
             let package_id = &entry.node().package_id;
 
             let build_dir = config.build_with(|mut path| {
+                path.push("x86_64-unknown-linux-gnu");
                 path.push(group_id.as_str());
                 path.push(package_id.as_str());
                 path.push(version.to_string());

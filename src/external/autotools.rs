@@ -156,12 +156,11 @@ impl Autotools {
         stderr_handle.await??;
         wait_handle.await?;
 
-        /*
         let mut command = Command::new("make");
 
         command
             .arg("-j18")
-            .current_dir(& self.path)
+            .current_dir(&self.path)
             .env_clear()
             .env("PATH", "/bin")
             .stderr(Stdio::piped())
@@ -196,7 +195,7 @@ impl Autotools {
                 let line = String::from_utf8_lossy(&line).to_lowercase();
                 let mut parts: Vec<_> = line.split_whitespace().collect();
 
-                //println!("stderr: {parts:?}");
+                println!("stderr: {parts:?}");
             }
 
             Ok::<_, crate::Error>(())
@@ -207,11 +206,68 @@ impl Autotools {
             let line = String::from_utf8_lossy(&line).to_lowercase();
             let mut parts: Vec<_> = line.split_whitespace().collect();
 
-            //println!("stdout: {parts:?}");
+            println!("stdout: {parts:?}");
         }
 
         stderr_handle.await??;
-        wait_handle.await?;*/
+        wait_handle.await?;
+
+        let mut command = Command::new("make");
+
+        command
+            .arg("install")
+            .arg("-j18")
+            .current_dir(&self.path)
+            .env_clear()
+            .env("PATH", "/bin")
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped());
+
+        command.print(build.config(), "build").await?;
+
+        let mut child = command.spawn()?;
+
+        let stderr = child
+            .stderr
+            .take()
+            .expect("child did not have a handle to stderr");
+
+        let stdout = child
+            .stdout
+            .take()
+            .expect("child did not have a handle to stdout");
+
+        let mut stderr = BufReader::new(stderr).lines();
+        let mut stdout = BufReader::new(stdout).lines();
+
+        let wait_handle = tokio::spawn(async move {
+            // handle errors and status
+            let _ = child.wait().await;
+        });
+
+        let stderr_handle = tokio::spawn(async move {
+            while let Some(line) = stderr.next_line().await? {
+                let line = strip_ansi_escapes::strip(&line)?;
+                let line = String::from_utf8_lossy(&line).to_lowercase();
+                let mut parts: Vec<_> = line.split_whitespace().collect();
+
+                println!("stderr: {parts:?}");
+            }
+
+            Ok::<_, crate::Error>(())
+        });
+
+        while let Some(line) = stdout.next_line().await? {
+            let line = strip_ansi_escapes::strip(&line)?;
+            let line = String::from_utf8_lossy(&line).to_lowercase();
+            let mut parts: Vec<_> = line.split_whitespace().collect();
+
+            println!("stdout: {parts:?}");
+        }
+
+        stderr_handle.await??;
+        wait_handle.await?;
 
         Ok(())
     }
@@ -266,7 +322,7 @@ async fn process_line(build: &Build, line: &str) -> crate::Result<()> {
 
             line.newline().render(build.config().shell()).await?;
         }
-        Status::Check(Check::None) => {}
+        Status::Skip => {}
         _ => {
             Line::new(" !!", Colour::None)
                 .append("debug", Colour::Blue)

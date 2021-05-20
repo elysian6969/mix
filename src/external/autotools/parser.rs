@@ -41,7 +41,7 @@ impl<'a> Parser<'a> {
     /// optionally consume an ellipsis
     fn consume_ellipsis(&mut self) -> Option<()> {
         match self.current() {
-            Some(Token::Elipsis) => Some(self.step()),
+            Some(Token::Ellipsis) => Some(self.step()),
             _ => None,
         }
     }
@@ -145,21 +145,16 @@ impl<'a> Parser<'a> {
         self.consume_check()?;
         self.consume_for()?;
 
-        /*let pattern = self
-        .consume_header()
-        .map(Pattern::Header)
-        .or_else(|| self.consume_ident().map(Pattern::Ident))
-        .or_else(|| self.consume_check_type().map(Pattern::Type))?;*/
+        let pattern = self
+            .consume_header()
+            .map(Pattern::Header)
+            .or_else(|| self.consume_ident().map(Pattern::Ident))
+            .or_else(|| self.consume_check_type().map(Pattern::Type))?;
 
-        self.step();
-        dbg!(self.current());
-
-        return Some(Status::Check(Check::None));
-
-        /*let ignore = self.comsume_ignore().is_some();
+        let ignore = self.comsume_ignore().is_some();
 
         if ignore {
-            return Some(Status::Check(Check::None));
+            return Some(Status::Skip);
         }
 
         let status = self.consume_check_rest();
@@ -169,11 +164,30 @@ impl<'a> Parser<'a> {
             Pattern::Type(ident) => Check::Type(ident, status),
         };
 
-        Some(Status::Check(check))*/
+        Some(Status::Check(check))
+    }
+
+    /// consume builder
+    fn consume_builder(&mut self) -> Option<()> {
+        match self.consume_ident()?.as_str() {
+            "builder" | "Builder" => Some(()),
+            _ => None,
+        }
+    }
+
+    /// consume builder pattern
+    fn consume_builder_pattern(&mut self) -> Option<Status> {
+        self.consume_builder()?;
+
+        Some(Status::Skip)
     }
 
     pub fn parse(&mut self) -> Status {
-        match self.consume_check_pattern() {
+        let status = self
+            .consume_check_pattern()
+            .or_else(|| self.consume_builder_pattern());
+
+        match status {
             Some(status) => status,
             _ => Status::None,
         }
@@ -183,6 +197,7 @@ impl<'a> Parser<'a> {
 #[derive(Debug)]
 pub enum Status {
     Check(Check),
+    Skip,
     None,
 }
 

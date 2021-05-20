@@ -9,7 +9,7 @@ pub enum Token<'a> {
     Check,
     Declared,
     Disable,
-    Elipsis,
+    Ellipsis,
     Enable,
     Exists,
     For,
@@ -76,7 +76,7 @@ impl<'a> Iterator for Lexer<'a> {
         if self.insert_ellipsis {
             self.insert_ellipsis = false;
 
-            return Some(Token::Elipsis);
+            return Some(Token::Ellipsis);
         }
 
         let ident = self.current()?;
