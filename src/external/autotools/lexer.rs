@@ -44,7 +44,7 @@ pub struct Lexer<'a> {
     input: &'a str,
     split: SplitWhitespace<'a>,
     lookahead: Option<&'a str>,
-    insert_elipsis: bool,
+    insert_ellipsis: bool,
 }
 
 impl<'a> Lexer<'a> {
@@ -56,7 +56,7 @@ impl<'a> Lexer<'a> {
             input,
             split,
             lookahead,
-            insert_elipsis: false,
+            insert_ellipsis: false,
         }
     }
 
@@ -73,8 +73,8 @@ impl<'a> Iterator for Lexer<'a> {
     type Item = Token<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.insert_elipsis {
-            self.insert_elipsis = false;
+        if self.insert_ellipsis {
+            self.insert_ellipsis = false;
 
             return Some(Token::Elipsis);
         }
@@ -82,7 +82,7 @@ impl<'a> Iterator for Lexer<'a> {
         let ident = self.current()?;
         let trimmed = ident.trim_end_matches("...");
 
-        self.insert_elipsis = trimmed.len() < ident.len();
+        self.insert_ellipsis = trimmed.len() < ident.len();
         self.step();
 
         let token = match trimmed {

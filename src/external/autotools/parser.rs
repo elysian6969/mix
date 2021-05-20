@@ -38,8 +38,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// optionally consume an elipsis
-    fn consume_elipsis(&mut self) -> Option<()> {
+    /// optionally consume an ellipsis
+    fn consume_ellipsis(&mut self) -> Option<()> {
         match self.current() {
             Some(Token::Elipsis) => Some(self.step()),
             _ => None,
@@ -123,7 +123,7 @@ impl<'a> Parser<'a> {
 
     /// optionally consume the rest of a check pattern
     fn consume_check_rest(&mut self) -> Option<bool> {
-        let _ = self.consume_elipsis();
+        let _ = self.consume_ellipsis();
         let _ = self.consume_cached();
 
         self.consume_status()
