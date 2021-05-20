@@ -61,6 +61,17 @@ impl Config {
         self.0.cache.as_path()
     }
 
+    pub fn target(&self, target: impl AsRef<Path>) -> PathBuf {
+        self.prefix().join(target)
+    }
+
+    pub fn target_with<F>(&self, target: impl AsRef<Path>, callback: F) -> PathBuf
+    where
+        F: FnOnce(PathBuf) -> PathBuf,
+    {
+        callback(self.target(target))
+    }
+
     /// helper function to clean up code i guess?
     pub fn cache_with<F>(&self, callback: F) -> PathBuf
     where

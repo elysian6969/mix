@@ -103,3 +103,76 @@ impl ProgressBar {
         Ok(())
     }
 }
+
+pub enum Colour {
+    None,
+    Blue,
+    Green,
+    Magenta,
+    Red,
+    Yellow,
+}
+
+pub struct Line {
+    buffer: String,
+}
+
+impl Line {
+    pub fn new(display: impl ufmt::uDisplay, colour: Colour) -> Self {
+        let mut buffer = String::new();
+
+        unsafe {
+            let display = colourise(display, colour);
+
+            ufmt::uwrite!(&mut buffer, "{}", display).unwrap_unchecked();
+        }
+
+        Self { buffer }
+    }
+
+    pub fn append(&mut self, display: impl ufmt::uDisplay, colour: Colour) -> &mut Self {
+        unsafe {
+            let display = colourise(display, colour);
+
+            ufmt::uwrite!(&mut self.buffer, " {}", display).unwrap_unchecked();
+        }
+
+        self
+    }
+
+    pub fn raw_append(&mut self, display: impl ufmt::uDisplay, colour: Colour) -> &mut Self {
+        unsafe {
+            let display = colourise(display, colour);
+
+            ufmt::uwrite!(&mut self.buffer, "{}", display).unwrap_unchecked();
+        }
+
+        self
+    }
+
+    pub fn newline(&mut self) -> &mut Self {
+        self.buffer.push('\n');
+        self
+    }
+
+    pub async fn render(&self, shell: &Shell) -> crate::Result<()> {
+        shell.write_all(self.buffer.as_bytes()).await?;
+        shell.flush().await?;
+
+        Ok(())
+    }
+}
+
+// holy fuck this code is shit lmao
+fn colourise(display: impl ufmt::uDisplay, colour: Colour) -> impl ufmt::uDisplay {
+    let display = unsafe { ufmt::uformat!("{}", display).unwrap_unchecked() };
+
+    match colour {
+        Colour::None => display,
+        Colour::Blue => display.blue().to_string(),
+        Colour::Green => display.green().to_string(),
+        Colour::Magenta => display.magenta().to_string(),
+        Colour::Red => display.red().to_string(),
+        Colour::Yellow => display.yellow().to_string(),
+    }
+}

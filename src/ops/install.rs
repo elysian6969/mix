@@ -13,8 +13,10 @@ use tokio::fs;
 
 pub mod build {
     use crate::config::Config;
+    use crate::package::Entry;
+    use semver::Version;
     use std::ops::Deref;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
     crate struct Ref {
@@ -24,6 +26,45 @@ pub mod build {
     }
 
     pub struct Build(Arc<Ref>);
+
+    impl Build {
+        pub fn new(config: &Config, entry: &Entry, version: &Version) -> Self {
+            let group_id = &entry.node().group_id;
+            let package_id = &entry.node().package_id;
+
+            let build_dir = config.build_with(|mut path| {
+                path.push(group_id.as_str());
+                path.push(package_id.as_str());
+                path.push(version.to_string());
+                path
+            });
+
+            let install_dir = config.target_with("x86_64-unknown-linux-gnu", |mut path| {
+                path.push(group_id.as_str());
+                path.push(package_id.as_str());
+                path.push(version.to_string());
+                path
+            });
+
+            Self(Arc::new(Ref {
+                config: config.clone(),
+                build_dir,
+                install_dir,
+            }))
+        }
+
+        pub fn config(&self) -> &Config {
+            &self.0.config
+        }
+
+        pub fn build_dir(&self) -> &Path {
+            self.0.build_dir.as_path()
+        }
+
+        pub fn install_dir(&self) -> &Path {
+            self.0.install_dir.as_path()
+        }
+    }
 
     impl Deref for Build {
         type Target = Config;
@@ -49,20 +90,19 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
             let (sources, errors) = download_sources(config, &entry, &requirement).await?;
 
             for source in sources {
-                let build_dir = config.build_with(|mut path| {
-                    path.push(group_id.as_str());
-                    path.push(package_id.as_str());
-                    path.push(source.0.to_string());
-                    path
-                });
+                let build = build::Build::new(config, &entry, &source.0);
+                let build_dir = build.build_dir();
 
-                let buffer = ufmt::uformat!(
-                    "{}/{} {:?}\n",
-                    group_id.as_str().blue().to_string(),
-                    package_id.as_str().green().to_string(),
-                    build_dir
-                )
-                .expect("infallible");
+                let buffer = unsafe {
+                    let result = ufmt::uformat!(
+                        "{}/{} {:?}\n",
+                        group_id.as_str().blue().to_string(),
+                        package_id.as_str().green().to_string(),
+                        build_dir
+                    );
+
+                    result.unwrap_unchecked()
+                };
 
                 Text::new(buffer).render(config.shell()).await?;
 
@@ -75,7 +115,8 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
                     if root.join("configure").exists() {
                         let mut autotools = Autotools::new(&root);
 
-                        autotools.execute(config).await?;
+                        autotools.prefix(build.install_dir());
+                        autotools.execute(&build).await?;
                     }
                 }
 

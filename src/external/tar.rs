@@ -1,5 +1,5 @@
 use super::process::{Command, Stdio};
-use crate::shell::Text;
+use crate::shell::{Colour, Line, Text};
 use crate::Config;
 use crossterm::style::Colorize;
 use std::path::Path;
@@ -12,14 +12,20 @@ pub async fn extract(
     src: impl AsRef<Path>,
     dst: impl AsRef<Path>,
 ) -> crate::Result<Vec<PathBuf>> {
-    let buffer = ufmt::uformat!(
-        " -> {} {:?}\n",
-        "extract".yellow().to_string(),
+    let src_name = unsafe {
         src.as_ref()
-    )
-    .expect("infallible");
+            .file_name()
+            .unwrap_unchecked()
+            .to_str()
+            .unwrap_unchecked()
+    };
 
-    Text::new(buffer).render(config.shell()).await?;
+    Line::new(" ->", Colour::None)
+        .append("extract", Colour::Yellow)
+        .append(format!("\"{src_name}\""), Colour::Magenta)
+        .newline()
+        .render(config.shell())
+        .await?;
 
     let _ = fs::create_dir_all(dst.as_ref()).await;
 

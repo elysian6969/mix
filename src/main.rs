@@ -1,6 +1,8 @@
 // NOTE: rustc oh phone is old
 #![allow(stable_features)]
+#![feature(bindings_after_at)]
 #![feature(command_access)]
+#![feature(core_intrinsics)]
 #![feature(crate_visibility_modifier)]
 #![feature(drain_filter)]
 #![feature(format_args_capture)]

@@ -1,5 +1,5 @@
 mod depend;
-mod install;
+pub mod install;
 mod sync;
 
 pub use self::depend::depend;
