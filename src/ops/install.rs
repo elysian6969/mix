@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::external::autotools::Autotools;
 use crate::external::tar;
 use crate::package::{Entry, Graph, PackageId};
-use crate::shell::Text;
+use crate::shell::{Colour, Line, Text};
 use crate::source::{github, gitlab, Source};
 use crossterm::style::Colorize;
 use semver::{Version, VersionReq};
@@ -96,10 +96,10 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
 
                 let buffer = unsafe {
                     let result = ufmt::uformat!(
-                        "{}/{} {:?}\n",
+                        "{}/{} v{}\n",
                         group_id.as_str().blue().to_string(),
                         package_id.as_str().green().to_string(),
-                        build_dir
+                        &source.0.to_string(),
                     );
 
                     result.unwrap_unchecked()
@@ -107,13 +107,24 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
 
                 Text::new(buffer).render(config.shell()).await?;
 
+                if build.install_dir().exists() {
+                    Line::new(" ->", Colour::None)
+                        .append("installed", Colour::Green)
+                        .newline()
+                        .render(config.shell())
+                        .await?;
+
+                    continue;
+                }
+
                 let _ = fs::remove_dir_all(&build_dir).await;
                 let entries = tar::extract(config, &source.1, &build_dir).await?;
 
                 if let Some(root) = entries.iter().next() {
                     let root = build_dir.join(&root);
 
-                    if root.join("configure").exists() {
+                    if root.join("CMakeLists.txt").exists() {
+                    } else if root.join("configure").exists() {
                         let mut autotools = Autotools::new(&root);
 
                         autotools.prefix(build.install_dir());
