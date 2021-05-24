@@ -1,35 +1,40 @@
 use super::process::{Command, Stdio};
 use crate::ops::install::build::Build;
 use std::path::Path;
+use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-pub struct Make<'a> {
+pub struct Meson<'a> {
     build_dir: &'a Path,
     prefix: &'a Path,
     jobs: usize,
 }
 
-impl<'a> Make<'a> {
+impl<'a> Meson<'a> {
     pub fn prefix(&mut self, prefix: &'a Path) -> &mut Self {
         self.prefix = prefix;
         self
     }
 
     pub async fn execute(&mut self, build: &Build) -> crate::Result<()> {
-        let mut command = Command::new("make");
+        let mut command = Command::new("meson");
+
+        let builderer = build.build_dir().join("build");
+
+        fs::create_dir_all(&builderer).await?;
 
         command
-            .arg("install")
-            .arg("--jobs")
-            .arg(self.jobs.to_string())
-            .current_dir(&self.build_dir)
+            .arg("--buildtype=release")
+            .arg("--wrap-mode=nodownload")
+            .arg(self.build_dir)
+            .current_dir(&builderer)
             .env_clear()
             .env("PATH", "/bin")
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
-        command.print(build.config(), "build").await?;
+        command.print(build.config(), "meson").await?;
 
         let mut child = command.spawn()?;
 
@@ -71,9 +76,9 @@ impl<'a> Make<'a> {
     }
 }
 
-/// create a new make invocation
-pub fn make<'a>(build_dir: &'a Path) -> Make<'a> {
-    Make {
+/// create a new meson invocation
+pub fn meson<'a>(build_dir: &'a Path) -> Meson<'a> {
+    Meson {
         build_dir: build_dir,
         prefix: Path::new("/usr/local"),
         jobs: 1,

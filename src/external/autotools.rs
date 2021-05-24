@@ -1,8 +1,6 @@
 use super::process::{Command, Stdio};
-use crate::config::Config;
 use crate::ops::install::build::Build;
-use crate::shell::{Colour, Line, Text};
-use crossterm::style::Colorize;
+use crate::shell::{Colour, Line};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -193,7 +191,7 @@ impl Autotools {
             while let Some(line) = stderr.next_line().await? {
                 let line = strip_ansi_escapes::strip(&line)?;
                 let line = String::from_utf8_lossy(&line).to_lowercase();
-                let mut parts: Vec<_> = line.split_whitespace().collect();
+                let parts: Vec<_> = line.split_whitespace().collect();
 
                 println!("stderr: {parts:?}");
             }
@@ -204,7 +202,7 @@ impl Autotools {
         while let Some(line) = stdout.next_line().await? {
             let line = strip_ansi_escapes::strip(&line)?;
             let line = String::from_utf8_lossy(&line).to_lowercase();
-            let mut parts: Vec<_> = line.split_whitespace().collect();
+            let parts: Vec<_> = line.split_whitespace().collect();
 
             println!("stdout: {parts:?}");
         }
@@ -250,7 +248,7 @@ impl Autotools {
             while let Some(line) = stderr.next_line().await? {
                 let line = strip_ansi_escapes::strip(&line)?;
                 let line = String::from_utf8_lossy(&line).to_lowercase();
-                let mut parts: Vec<_> = line.split_whitespace().collect();
+                let parts: Vec<_> = line.split_whitespace().collect();
 
                 println!("stderr: {parts:?}");
             }
@@ -261,7 +259,7 @@ impl Autotools {
         while let Some(line) = stdout.next_line().await? {
             let line = strip_ansi_escapes::strip(&line)?;
             let line = String::from_utf8_lossy(&line).to_lowercase();
-            let mut parts: Vec<_> = line.split_whitespace().collect();
+            let parts: Vec<_> = line.split_whitespace().collect();
 
             println!("stdout: {parts:?}");
         }

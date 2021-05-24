@@ -1,7 +1,6 @@
 use super::process::{Command, Stdio};
-use crate::shell::{Colour, Line, Text};
+use crate::shell::{Colour, Line};
 use crate::Config;
-use crossterm::style::Colorize;
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::fs;

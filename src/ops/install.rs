@@ -1,6 +1,8 @@
 use crate::atom::Atom;
 use crate::config::Config;
 use crate::external::autotools::Autotools;
+use crate::external::cmake;
+use crate::external::meson;
 use crate::external::tar;
 use crate::package::{Entry, Graph, PackageId};
 use crate::shell::{Colour, Line, Text};
@@ -124,6 +126,15 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
                     let root = build_dir.join(&root);
 
                     if root.join("CMakeLists.txt").exists() {
+                        let mut cmake = cmake::cmake(&root);
+
+                        cmake.prefix(build.install_dir());
+                        cmake.execute(&build).await?;
+                    } else if root.join("meson.build").exists() {
+                        let mut meson = meson::meson(&root);
+
+                        meson.prefix(build.install_dir());
+                        meson.execute(&build).await?;
                     } else if root.join("configure").exists() {
                         let mut autotools = Autotools::new(&root);
 

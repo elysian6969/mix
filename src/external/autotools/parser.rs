@@ -1,5 +1,5 @@
 use super::lexer::{Lexer, Token};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
