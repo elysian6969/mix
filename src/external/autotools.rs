@@ -2,6 +2,7 @@ use super::process::{Command, Stdio};
 use crate::ops::install::build::Build;
 use crate::shell::{Colour, Line};
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use ufmt::derive::uDebug;
@@ -13,259 +14,125 @@ mod error;
 pub mod lexer;
 pub mod parser;
 
-#[derive(uDebug)]
-pub enum Value {
-    Bool(bool),
-    String(String),
+pub struct Autotools<'a> {
+    /// `--enable` and `--disable`
+    definitions: &'a [Pair<'a>],
+    /// `--with` and `--without`
+    inclusions: &'a [Pair<'a>],
 }
 
-impl From<bool> for Value {
+pub struct Pair<'a> {
+    key: &'a str,
+    val: Value<'a>,
+}
+
+impl<'a> Pair<'a> {
+    pub fn to_string(&self, inclusions: bool) -> String {
+        match (inclusions, &self.val) {
+            (false, Value::Bool(false)) => format!("--disable-{}", self.key),
+            (false, val) => format!("--enable-{}={}", self.key, val.as_str()),
+            (true, Value::Bool(false)) => format!("--without-{}", self.key),
+            (true, val) => format!("--with-{}={}", self.key, val.as_str()),
+        }
+    }
+}
+
+pub enum Value<'a> {
+    Bool(bool),
+    Str(&'a str),
+}
+
+impl<'a> Value<'a> {
+    pub const fn yes() -> Self {
+        Self::Bool(true)
+    }
+
+    pub const fn no() -> Self {
+        Self::Bool(true)
+    }
+
+    pub const fn str(string: &'a str) -> Self {
+        Self::Str(string)
+    }
+
+    pub const fn as_str(&self) -> &str {
+        match self {
+            Value::Bool(true) => "true",
+            Value::Bool(false) => "false",
+            Value::Str(string) => string,
+        }
+    }
+}
+
+impl<'a> From<bool> for Value<'a> {
     fn from(value: bool) -> Self {
         Self::Bool(value)
     }
 }
 
-impl From<String> for Value {
-    fn from(value: String) -> Self {
-        Self::String(value)
+impl<'a> From<&'a str> for Value<'a> {
+    fn from(value: &'a str) -> Self {
+        Self::Str(value)
     }
 }
 
-#[derive(uDebug)]
-pub struct Autotools {
-    /// path
-    path: PathBuf,
-
-    /// prefix
-    prefix: Option<PathBuf>,
-
-    /// --enable/--disable
-    defines: HashMap<String, Value>,
-
-    /// --with/--without
-    includes: HashMap<String, Value>,
+impl<'a> AsRef<str> for Value<'a> {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
 }
 
-impl Autotools {
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        Self {
-            path: path.as_ref().to_path_buf(),
-            prefix: None,
-            defines: HashMap::new(),
-            includes: HashMap::new(),
-        }
+impl<'a> AsRef<OsStr> for Value<'a> {
+    fn as_ref(&self) -> &OsStr {
+        self.as_str().as_ref()
     }
+}
 
-    pub fn prefix(&mut self, prefix: impl Into<PathBuf>) -> &mut Self {
-        self.prefix = Some(prefix.into());
+pub const fn autotools<'a>() -> Autotools<'a> {
+    Autotools {
+        definitions: &[],
+        inclusions: &[],
+    }
+}
+
+impl<'a> Autotools<'a> {
+    pub fn definitions(&mut self, definitions: &'a [Pair<'a>]) -> &mut Self {
+        self.definitions = definitions;
         self
     }
 
-    pub fn define(&mut self, define: impl Into<String>, value: impl Into<Value>) -> &mut Self {
-        self.defines.insert(define.into(), value.into());
+    pub fn inclusions(&mut self, inclusions: &'a [Pair<'a>]) -> &mut Self {
+        self.inclusions = inclusions;
         self
     }
 
-    pub fn include(&mut self, define: impl Into<String>, value: impl Into<Value>) -> &mut Self {
-        self.includes.insert(define.into(), value.into());
-        self
+    pub fn get_definitions(&self) -> impl Iterator<Item = String> + '_ {
+        self.definitions.iter().map(|pair| pair.to_string(false))
     }
 
-    pub fn get_defines(&self) -> impl Iterator<Item = String> + '_ {
-        self.defines.iter().flat_map(|(define, value)| match value {
-            Value::Bool(true) => ufmt::uformat!("--enable-{}", define),
-            Value::Bool(false) => ufmt::uformat!("--disable-{}", define),
-            Value::String(value) => ufmt::uformat!("--enable-{}={}", define, value),
-        })
-    }
-
-    pub fn get_includes(&self) -> impl Iterator<Item = String> + '_ {
-        self.includes
-            .iter()
-            .flat_map(|(include, value)| match value {
-                Value::Bool(true) => ufmt::uformat!("--with-{}", include),
-                Value::Bool(false) => ufmt::uformat!("--without-{}", include),
-                Value::String(value) => ufmt::uformat!("--enable-{}={}", include, value),
-            })
+    pub fn get_inclusions(&self) -> impl Iterator<Item = String> + '_ {
+        self.inclusions.iter().map(|pair| pair.to_string(true))
     }
 
     pub async fn execute(&mut self, build: &Build) -> crate::Result<()> {
         let mut command = Command::new("./configure");
 
-        if let Some(prefix) = &self.prefix {
-            let prefix = prefix.display();
-
-            command.arg(format!("--prefix={prefix}"));
-        }
-
         command
-            .args(self.get_includes())
-            .args(self.get_defines())
-            .current_dir(&self.path)
-            .env_clear()
-            .env("AR", "llvm-ar")
-            .env("CC", "clang")
-            .env("PATH", "/bin")
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        command.print(build.config(), "config").await?;
-
-        let mut child = command.spawn()?;
-
-        let stderr = child
-            .stderr
-            .take()
-            .expect("child did not have a handle to stderr");
-
-        let stdout = child
-            .stdout
-            .take()
-            .expect("child did not have a handle to stdout");
-
-        let mut stderr = BufReader::new(stderr).lines();
-        let mut stdout = BufReader::new(stdout).lines();
-
-        let wait_handle = tokio::spawn(async move {
-            // handle errors and status
-            let _ = child.wait().await;
-        });
-
-        let stderr_handle = tokio::spawn(async move {
-            while let Some(line) = stderr.next_line().await? {
-                let line = strip_ansi_escapes::strip(&line)?;
-                let line = String::from_utf8_lossy(&line).to_lowercase();
-                let parts: Vec<_> = line.split_whitespace().collect();
-
-                //println!("stderr: {parts:?}");
-            }
-
-            Ok::<_, crate::Error>(())
-        });
-
-        let reset = "\x1b[K\r";
-        let newline = "\n";
-
-        while let Some(line) = stdout.next_line().await? {
-            process_line(build, &line).await?;
-        }
-
-        stderr_handle.await??;
-        wait_handle.await?;
-
-        let mut command = Command::new("make");
-
-        command
-            .arg("-j18")
-            .current_dir(&self.path)
+            .arg(format!("--prefix={}", build.install_dir().display()))
+            .args(self.get_definitions())
+            .args(self.get_inclusions())
+            .current_dir(build.source_dir().as_path())
             .env_clear()
             .env("PATH", "/bin")
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
-        command.print(build.config(), "build").await?;
+        command.print(build.config(), "configure").await?;
+        command.fancy_spawn().await?;
 
-        let mut child = command.spawn()?;
-
-        let stderr = child
-            .stderr
-            .take()
-            .expect("child did not have a handle to stderr");
-
-        let stdout = child
-            .stdout
-            .take()
-            .expect("child did not have a handle to stdout");
-
-        let mut stderr = BufReader::new(stderr).lines();
-        let mut stdout = BufReader::new(stdout).lines();
-
-        let wait_handle = tokio::spawn(async move {
-            // handle errors and status
-            let _ = child.wait().await;
-        });
-
-        let stderr_handle = tokio::spawn(async move {
-            while let Some(line) = stderr.next_line().await? {
-                let line = strip_ansi_escapes::strip(&line)?;
-                let line = String::from_utf8_lossy(&line).to_lowercase();
-                let parts: Vec<_> = line.split_whitespace().collect();
-
-                println!("stderr: {parts:?}");
-            }
-
-            Ok::<_, crate::Error>(())
-        });
-
-        while let Some(line) = stdout.next_line().await? {
-            let line = strip_ansi_escapes::strip(&line)?;
-            let line = String::from_utf8_lossy(&line).to_lowercase();
-            let parts: Vec<_> = line.split_whitespace().collect();
-
-            println!("stdout: {parts:?}");
-        }
-
-        stderr_handle.await??;
-        wait_handle.await?;
-
-        let mut command = Command::new("make");
-
-        command
-            .arg("install")
-            .arg("-j18")
-            .current_dir(&self.path)
-            .env_clear()
-            .env("PATH", "/bin")
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        command.print(build.config(), "build").await?;
-
-        let mut child = command.spawn()?;
-
-        let stderr = child
-            .stderr
-            .take()
-            .expect("child did not have a handle to stderr");
-
-        let stdout = child
-            .stdout
-            .take()
-            .expect("child did not have a handle to stdout");
-
-        let mut stderr = BufReader::new(stderr).lines();
-        let mut stdout = BufReader::new(stdout).lines();
-
-        let wait_handle = tokio::spawn(async move {
-            // handle errors and status
-            let _ = child.wait().await;
-        });
-
-        let stderr_handle = tokio::spawn(async move {
-            while let Some(line) = stderr.next_line().await? {
-                let line = strip_ansi_escapes::strip(&line)?;
-                let line = String::from_utf8_lossy(&line).to_lowercase();
-                let parts: Vec<_> = line.split_whitespace().collect();
-
-                println!("stderr: {parts:?}");
-            }
-
-            Ok::<_, crate::Error>(())
-        });
-
-        while let Some(line) = stdout.next_line().await? {
-            let line = strip_ansi_escapes::strip(&line)?;
-            let line = String::from_utf8_lossy(&line).to_lowercase();
-            let parts: Vec<_> = line.split_whitespace().collect();
-
-            println!("stdout: {parts:?}");
-        }
-
-        stderr_handle.await??;
-        wait_handle.await?;
+        super::make().execute(build).await?;
+        super::make().subcommand("install").execute(build).await?;
 
         Ok(())
     }

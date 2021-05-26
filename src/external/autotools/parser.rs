@@ -22,36 +22,32 @@ impl<'a> Parser<'a> {
         &self.lookahead
     }
 
+    fn consume_if(&mut self, token: Token<'_>) -> Option<()> {
+        if self.current() == &Some(token) {
+            Some(())
+        } else {
+            None
+        }
+    }
+
     /// optionally consume a check
     fn consume_check(&mut self) -> Option<()> {
-        match self.current() {
-            Some(Token::Check) => Some(self.step()),
-            _ => None,
-        }
+        self.consume_if(Token::Check)
     }
 
     /// optionally consume an cached
     fn consume_cached(&mut self) -> Option<()> {
-        match self.current() {
-            Some(Token::Cached) => Some(self.step()),
-            _ => None,
-        }
+        self.consume_if(Token::Cached)
     }
 
     /// optionally consume an ellipsis
     fn consume_ellipsis(&mut self) -> Option<()> {
-        match self.current() {
-            Some(Token::Ellipsis) => Some(self.step()),
-            _ => None,
-        }
+        self.consume_if(Token::Ellipsis)
     }
 
     /// optionally consume a for
     fn consume_for(&mut self) -> Option<()> {
-        match self.current() {
-            Some(Token::For) => Some(self.step()),
-            _ => None,
-        }
+        self.consume_if(Token::For)
     }
 
     /// optionally consume header
@@ -84,18 +80,12 @@ impl<'a> Parser<'a> {
 
     /// optionally consume presence
     fn consume_presence(&mut self) -> Option<()> {
-        match self.current() {
-            Some(Token::Presence) => Some(self.step()),
-            _ => None,
-        }
+        self.consume_if(Token::Presence)
     }
 
     /// optionally consume a type
     fn consume_type(&mut self) -> Option<()> {
-        match self.current() {
-            Some(Token::Type) => Some(self.step()),
-            _ => None,
-        }
+        self.consume_if(Token::Type)
     }
 
     /// optionally consume a status
@@ -115,10 +105,7 @@ impl<'a> Parser<'a> {
 
     /// optionally consume usability
     fn consume_usability(&mut self) -> Option<()> {
-        match self.current() {
-            Some(Token::Usability) => Some(self.step()),
-            _ => None,
-        }
+        self.consume_if(Token::Usability)
     }
 
     /// optionally consume the rest of a check pattern
@@ -137,7 +124,7 @@ impl<'a> Parser<'a> {
 
     /// optionally consume presence or usability
     fn comsume_ignore(&mut self) -> Option<()> {
-        self.consume_presence().or(self.consume_usability())
+        self.consume_presence().or_else(|| self.consume_usability())
     }
 
     /// optionally consume check patterns

@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::str::SplitWhitespace;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Token<'a> {
     And,
     Build,

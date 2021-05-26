@@ -4,7 +4,9 @@ mod client;
 pub use self::builder::Builder;
 pub use self::client::Client;
 
+use crate::package::Node;
 use crate::shell::Shell;
+use semver::Version;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -61,6 +63,14 @@ impl Config {
         self.0.cache.as_path()
     }
 
+    /// helper function to clean up code i guess?
+    pub fn cache_with<F>(&self, callback: F) -> PathBuf
+    where
+        F: FnOnce(PathBuf) -> PathBuf,
+    {
+        callback(self.cache().to_path_buf())
+    }
+
     pub fn target(&self, target: impl AsRef<Path>) -> PathBuf {
         self.prefix().join(target)
     }
@@ -72,12 +82,28 @@ impl Config {
         callback(self.target(target))
     }
 
-    /// helper function to clean up code i guess?
-    pub fn cache_with<F>(&self, callback: F) -> PathBuf
-    where
-        F: FnOnce(PathBuf) -> PathBuf,
-    {
-        callback(self.cache().to_path_buf())
+    pub fn build_dirs(&self, node: &Node, version: &Version) -> (PathBuf, PathBuf) {
+        let group = node.group_id.as_str();
+        let package = node.package_id.as_str();
+        let version = version.to_string();
+        let target = "x86_64-unknown-linux-gnu";
+
+        let build_dir = self.build_with(|mut path| {
+            path.push(&target);
+            path.push(&group);
+            path.push(&package);
+            path.push(&version);
+            path
+        });
+
+        let install_dir = self.target_with(&target, |mut path| {
+            path.push(&group);
+            path.push(&package);
+            path.push(&version);
+            path
+        });
+
+        (build_dir, install_dir)
     }
 
     /// map of repositories

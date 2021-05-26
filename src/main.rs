@@ -45,19 +45,6 @@ async fn main() -> crate::Result<()> {
         .repositories(metadata.repositories)
         .build()?;
 
-    /*for progress in 0u32..=100 {
-        Text::new(format_args!("{progress:>2}% "))
-            .render(&shell)
-            .await?;
-        ProgressBar::new(0.0..=100.0, progress as f32)
-            .render(&shell)
-            .await?;
-        Text::new("\r").render(&shell).await?;
-        sleep(Duration::from_millis(100)).await;
-    }
-
-    Text::new("\x1b[K").render(&shell).await?;*/
-
     let options = Options::from_env(&config).await?;
 
     match options {

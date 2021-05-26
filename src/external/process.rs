@@ -7,6 +7,8 @@ use std::fmt;
 use std::fmt::Write;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
+use tokio::io::AsyncBufReadExt;
+use tokio::io::BufReader;
 use tokio::io::Result;
 
 pub use self::stdio::Stdio;
@@ -21,7 +23,6 @@ pub struct Command {
     stdin: Stdio,
     stdout: Stdio,
     kill_on_drop: bool,
-    pre_exec: Option<Box<dyn FnMut() -> Result<()> + Send + Sync + 'static>>,
 }
 
 impl Command {
@@ -32,7 +33,6 @@ impl Command {
             stdin: Stdio::inherit(),
             stdout: Stdio::inherit(),
             kill_on_drop: false,
-            pre_exec: None,
         }
     }
 
@@ -119,14 +119,6 @@ impl Command {
         self
     }
 
-    pub unsafe fn pre_exec<F>(&mut self, f: F) -> &mut Self
-    where
-        F: FnMut() -> Result<()> + Send + Sync + 'static,
-    {
-        self.pre_exec = Some(Box::new(f));
-        self
-    }
-
     pub fn get_program(&self) -> &OsStr {
         self.std.get_program()
     }
@@ -156,21 +148,21 @@ impl Command {
                 ufmt::uwrite!(&mut buffer, " ").unwrap_unchecked();
             }
 
-            for arg in args.by_ref().take(len.saturating_sub(2)) {
+            for arg in args.by_ref().take(len.saturating_sub(1)) {
                 let arg = arg.to_str().unwrap_unchecked();
 
-                ufmt::uwrite!(&mut buffer, "{}, ", arg).unwrap_unchecked();
+                ufmt::uwrite!(&mut buffer, "\x1b[38;5;4m\"{}\"\x1b[m, ", arg).unwrap_unchecked();
             }
 
             if let Some(arg) = args.next() {
                 let arg = arg.to_str().unwrap_unchecked();
 
-                ufmt::uwrite!(&mut buffer, "{}", arg).unwrap_unchecked();
+                ufmt::uwrite!(&mut buffer, "\x1b[38;5;4m\"{}\"\x1b[m", arg).unwrap_unchecked();
             }
 
             let current_dir = self
                 .get_current_dir()
-                .unwrap_or(Path::new("."))
+                .unwrap_or_else(|| Path::new("."))
                 .to_str()
                 .unwrap_unchecked();
 
@@ -202,5 +194,38 @@ impl Command {
         let child = tokio.spawn()?;
 
         Ok(child)
+    }
+
+    pub async fn fancy_spawn(self) -> crate::Result<()> {
+        let mut child = self.spawn()?;
+
+        let stderr = unsafe { child.stderr.take().unwrap_unchecked() };
+        let stdout = unsafe { child.stdout.take().unwrap_unchecked() };
+
+        let mut stderr = BufReader::new(stderr).lines();
+        let mut stdout = BufReader::new(stdout).lines();
+
+        let wait = tokio::spawn(async move { child.wait().await });
+        let stderr = tokio::spawn(async move {
+            while let Some(line) = stderr.next_line().await? {
+                println!("!!! {line:?}");
+            }
+
+            Ok::<_, crate::Error>(())
+        });
+
+        let stdout = tokio::spawn(async move {
+            while let Some(line) = stdout.next_line().await? {
+                println!(">>> {line:?}");
+            }
+
+            Ok::<_, crate::Error>(())
+        });
+
+        stderr.await??;
+        stdout.await??;
+        wait.await??;
+
+        Ok(())
     }
 }
