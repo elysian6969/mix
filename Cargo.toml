@@ -1,6 +1,7 @@
 [workspace]
 default-members = [ "mixer" ]
 members = [
+    "graph",
     "mixer",
     "shell"
 ]
