@@ -1,6 +1,7 @@
 [workspace]
 default-members = [ "mixer" ]
 members = [
+    "bimap",
     "graph",
     "mixer",
     "shell"

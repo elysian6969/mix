@@ -22,14 +22,14 @@ mod symbols;
 async fn map_entry(
     group_id: GroupId,
     entry: io::Result<DirEntry>,
-) -> crate::Result<(PackageId, Node)> {
+) -> crate::Result<(opaque::Package, Node)> {
     let entry = entry?;
     let file_name = entry
         .file_name()
         .into_string()
         .map_err(|_| "invalid utf-8")?;
 
-    let package_id = PackageId::new(file_name);
+    let package_id = opaque::Package::new(file_name);
     let slice = entry.path().join("package.yml").read().await?;
     let metadata: Metadata = serde_yaml::from_slice(&slice)?;
     let package = Node::new(group_id, package_id.clone(), metadata);
@@ -56,12 +56,29 @@ pub struct Graph {
 }
 
 impl Graph {
+    /// Create a new Graph
     pub fn new() -> Graph {
         Self {
             g2p: BiHashMap::new(),
             p2p: BiHashMap::new(),
             p2d: HashMap::new(),
         }
+    }
+
+    pub fn insert(
+        &mut self,
+        group: impl Into<opaque::Group>,
+        package: impl Into<opaque::Package>,
+        data: Data,
+    ) -> bool {
+        let package = package.into();
+
+        self.g2p.insert_clone(group.into(), package.clone());
+        self.p2d.insert(package, data)
+    }
+
+    pub fn remove_group(&mut self, group: impl Into<opaque::Group>) -> bool {
+        self.g2p.remove_by_left(group.into())
     }
 
     pub async fn open(
@@ -95,7 +112,7 @@ impl Graph {
                         .relationships
                         .get_mut(&id)
                         .expect("already inserted")
-                        .insert(PackageId::new(depend), Relationship::Direct);
+                        .insert(opaque::Package::new(depend), Relationship::Direct);
                 }
 
                 graph.nodes.insert(id, node);
@@ -105,7 +122,7 @@ impl Graph {
         Ok(graph)
     }
 
-    pub fn get(&self, package_id: &PackageId) -> Option<Entry<'_>> {
+    pub fn get(&self, package_id: &opaque::Package) -> Option<Entry<'_>> {
         self.nodes.get(package_id).and_then(|node| {
             self.relationships
                 .get(package_id)
@@ -116,13 +133,13 @@ impl Graph {
         })
     }
 
-    pub fn order<'graph>(&'graph self, package_id: &'graph PackageId) -> Order<'graph> {
-        let mut visited_packages: HashSet<&'graph PackageId> = HashSet::new();
+    pub fn order<'graph>(&'graph self, package_id: &'graph opaque::Package) -> Order<'graph> {
+        let mut visited_packages: HashSet<&'graph opaque::Package> = HashSet::new();
         let mut order = Vec::new();
 
         depends_resolve(&self, &package_id, &mut visited_packages, &mut order);
 
-        let mut visited_order: HashSet<&'graph PackageId> = HashSet::new();
+        let mut visited_order: HashSet<&'graph opaque::Package> = HashSet::new();
 
         order
             .drain_filter(|package_id| visited_order.insert(package_id))
@@ -137,7 +154,7 @@ impl Graph {
 
     pub fn display_tree<'graph, 'symbols>(
         &'graph self,
-        root: &'graph PackageId,
+        root: &'graph opaque::Package,
         symbols: &'symbols Symbols,
     ) -> Display<'graph, 'symbols> {
         Display {
@@ -150,7 +167,7 @@ impl Graph {
 
 pub struct Entry<'graph> {
     pub node: &'graph Node,
-    pub relationships: &'graph BTreeMap<PackageId, Relationship>,
+    pub relationships: &'graph BTreeMap<opaque::Package, Relationship>,
 }
 
 impl<'graph> Entry<'graph> {
@@ -158,19 +175,19 @@ impl<'graph> Entry<'graph> {
         self.node
     }
 
-    pub fn relationships(&'graph self) -> &'graph BTreeMap<PackageId, Relationship> {
+    pub fn relationships(&'graph self) -> &'graph BTreeMap<opaque::Package, Relationship> {
         self.relationships
     }
 }
 
 pub struct Order<'graph> {
     graph: &'graph Graph,
-    visited: HashSet<&'graph PackageId>,
-    order: Vec<&'graph PackageId>,
+    visited: HashSet<&'graph opaque::Package>,
+    order: Vec<&'graph opaque::Package>,
 }
 
 impl<'graph> Order<'graph> {
-    pub fn get(&self, package_id: &PackageId) -> Option<Entry<'_>> {
+    pub fn get(&self, package_id: &opaque::Package) -> Option<Entry<'_>> {
         self.visited
             .get(package_id)
             .and_then(|_| self.graph.get(package_id))
@@ -186,7 +203,7 @@ impl<'graph> Order<'graph> {
 
 pub struct OrderIter<'graph> {
     order: &'graph Order<'graph>,
-    iter: std::slice::Iter<'graph, &'graph PackageId>,
+    iter: std::slice::Iter<'graph, &'graph opaque::Package>,
 }
 
 impl<'graph> Iterator for OrderIter<'graph> {
@@ -202,9 +219,9 @@ impl<'graph> Iterator for OrderIter<'graph> {
 
 fn depends_resolve<'graph>(
     graph: &'graph Graph,
-    package_id: &'graph PackageId,
-    visited_packages: &mut HashSet<&'graph PackageId>,
-    dependency_order: &mut Vec<&'graph PackageId>,
+    package_id: &'graph opaque::Package,
+    visited_packages: &mut HashSet<&'graph opaque::Package>,
+    dependency_order: &mut Vec<&'graph opaque::Package>,
 ) {
     if let Some(entry) = graph.get(package_id) {
         let visited = !visited_packages.insert(package_id);

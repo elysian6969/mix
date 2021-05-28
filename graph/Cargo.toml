@@ -4,5 +4,5 @@ version = "0.0.0"
 edition = "2018"
 
 [dependencies]
-bimap = { version = "0.6" }
+bimap = { path = "../bimap" }
 vfs = { path = "../vfs" }

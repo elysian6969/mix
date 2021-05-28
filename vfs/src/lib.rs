@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::fs;
 
 pub use std::fs::{Metadata, Permissions};
-pub use std::path::Ancestors;
+pub use std::path::{Ancestors, StripPrefixError};
 pub use tokio::fs::ReadDir;
 
 #[repr(transparent)]
@@ -29,6 +29,11 @@ impl VfsPath {
     #[inline]
     pub fn new(s: &(impl AsRef<OsStr> + ?Sized)) -> &Self {
         unsafe { &*(s.as_ref() as *const OsStr as *const Self) }
+    }
+
+    #[inline]
+    pub fn from_bytes<'a>(s: impl AsRef<[u8]> + 'a) -> &'a Self {
+        unsafe { &*(s.as_ref() as *const [u8] as *const Self) }
     }
 
     pub fn ancestors(&self) -> Ancestors<'_> {
@@ -52,6 +57,49 @@ impl VfsPath {
         self.inner.as_os_str()
     }
 
+    /// Yields a `&str` slice if the `VfaPath` is valid unicode.
+    ///
+    /// This conversion may entail doing a check for UTF-8 validity.
+    /// Note that validation is performed because non-UTF-8 strings are
+    /// perfectly valid for some OS.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use vfs::VfsPath;
+    ///
+    /// let s = VfsPath::new("foo.txt").to_str();
+    ///
+    /// assert_eq!(Some("foo.txt"), s);
+    /// ```
+    #[inline]
+    pub fn to_str(&self) -> Option<&str> {
+        self.inner.to_str()
+    }
+
+    /// Converts a `VfsPath` to a [`Cow<str>`].
+    ///
+    /// Any non-Unicode sequences are replaced with
+    /// [`U+FFFD REPLACEMENT CHARACTER`](std::char::REPLACEMENT_CHARACTER).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::ffi::OsStr;
+    /// use std::os::unix::ffi::OsStrExt;
+    /// use vfs::VfsPath;
+    ///
+    /// let b = b"fo\xf0\x28\x8c\xbco.txt";
+    /// let s = OsStr::from_bytes(b.as_slice());
+    /// let p = VfsPath::new(s);
+    ///
+    /// assert_eq!(Some("fo�(��o.txt"), p.to_string_lossy());
+    /// ```
+    #[inline]
+    pub fn to_string_lossy(&self) -> Cow<'_, str> {
+        self.inner.to_string_lossy()
+    }
+
     /// Yields the underlying [`Path`] slice.
     ///
     /// # Examples
@@ -69,6 +117,7 @@ impl VfsPath {
         &self.inner
     }
 
+    /// Converts this `VfsPath` to an owned `VfsPathBuf`.
     #[inline]
     pub fn to_path_buf(&self) -> VfsPathBuf {
         self.as_std_path().to_path_buf().into()
@@ -81,6 +130,121 @@ impl VfsPath {
         let inner = PathBuf::from(inner);
 
         VfsPathBuf { inner }
+    }
+
+    #[inline]
+    pub fn is_absolute(&self) -> bool {
+        self.inner.is_absolute()
+    }
+
+    #[inline]
+    pub fn is_relative(&self) -> bool {
+        self.inner.is_relative()
+    }
+
+    #[inline]
+    pub fn has_root(&self) -> bool {
+        self.inner.has_root()
+    }
+
+    #[inline]
+    pub fn parent(&self) -> Option<&VfsPath> {
+        self.inner.parent().map(VfsPath::new)
+    }
+
+    #[inline]
+    pub fn extension(&self) -> Option<&OsStr> {
+        self.inner.extension()
+    }
+
+    #[inline]
+    pub fn extension_path(&self) -> Option<&VfsPath> {
+        self.extension().map(VfsPath::new)
+    }
+
+    #[inline]
+    pub fn extension_str(&self) -> Option<&str> {
+        self.extension_path().and_then(VfsPath::to_str)
+    }
+
+    #[inline]
+    pub fn file_name(&self) -> Option<&OsStr> {
+        self.inner.file_name()
+    }
+
+    #[inline]
+    pub fn file_name_path(&self) -> Option<&VfsPath> {
+        self.file_name().map(VfsPath::new)
+    }
+
+    #[inline]
+    pub fn file_name_str(&self) -> Option<&str> {
+        self.file_name_path().and_then(VfsPath::to_str)
+    }
+
+    #[inline]
+    pub fn file_stem(&self) -> Option<&OsStr> {
+        self.inner.file_stem()
+    }
+
+    #[inline]
+    pub fn file_stem_path(&self) -> Option<&VfsPath> {
+        self.file_stem().map(VfsPath::new)
+    }
+
+    #[inline]
+    pub fn file_stem_str(&self) -> Option<&str> {
+        self.file_stem_path().and_then(VfsPath::to_str)
+    }
+
+    #[inline]
+    pub fn strip_prefix(&self, base: impl AsRef<VfsPath>) -> Result<&VfsPath, StripPrefixError> {
+        self.inner.strip_prefix(base.as_ref()).map(VfsPath::new)
+    }
+
+    #[inline]
+    pub fn starts_with(&self, base: impl AsRef<VfsPath>) -> bool {
+        self.inner.starts_with(base.as_ref())
+    }
+
+    #[inline]
+    pub fn ends_with(&self, base: impl AsRef<VfsPath>) -> bool {
+        self.inner.ends_with(base.as_ref())
+    }
+
+    #[inline]
+    pub fn join(&self, path: impl AsRef<VfsPath>) -> VfsPathBuf {
+        self.inner.join(path.as_ref()).into()
+    }
+
+    #[inline]
+    pub fn with_file_name(&self, path: impl AsRef<OsStr>) -> VfsPathBuf {
+        self.inner.with_file_name(path.as_ref()).into()
+    }
+
+    #[inline]
+    pub fn with_extension(&self, path: impl AsRef<OsStr>) -> VfsPathBuf {
+        self.inner.with_extension(path.as_ref()).into()
+    }
+
+    #[inline]
+    pub async fn is_dir(&self) -> bool {
+        self.try_is_dir().await.unwrap_or(false)
+    }
+
+    #[inline]
+    pub async fn is_file(&self) -> bool {
+        self.try_is_file().await.unwrap_or(false)
+    }
+
+    #[inline]
+    pub async fn try_is_dir(&self) -> io::Result<bool> {
+        self.metadata().await.map(|metadata| metadata.is_dir())
+    }
+
+    #[inline]
+    pub async fn try_is_file(&self) -> io::Result<bool> {
+        self.metadata().await.map(|metadata| metadata.is_file())
     }
 
     /// Returns the canonical, absolute form of a path with all intermediate
@@ -152,6 +316,14 @@ impl VfsPath {
     /// ```
     pub async fn exists(&self) -> bool {
         self.metadata().await.is_ok()
+    }
+
+    pub async fn try_exists(&self) -> io::Result<bool> {
+        match self.metadata().await {
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
     }
 
     /// Creates a new hard link on the filesystem.
