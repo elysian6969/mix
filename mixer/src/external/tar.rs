@@ -19,7 +19,7 @@ pub async fn extract(
             .unwrap_unchecked()
     };
 
-    Line::new(" ->", Colour::None)
+    Line::new(">>>", Colour::None)
         .append("extract", Colour::Yellow)
         .append(format!("\"{src_name}\""), Colour::Magenta)
         .newline()

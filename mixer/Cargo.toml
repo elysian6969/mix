@@ -4,6 +4,7 @@ version = "0.0.0"
 edition = "2018"
 
 [dependencies]
+better-panic  = "0.2"
 bytes         = "1.0"
 byte-unit     = "4.0"
 crossterm     = "0.19"
@@ -17,7 +18,8 @@ serde_yaml    = "0.8"
 strip-ansi-escapes = { version = "0.1" }
 tokio         = { version = "1.6", features = ["full"] }
 tokio-stream  = { version = "0.1", features = ["fs"] }
-ufmt          = { features = ["std"], git = "https://github.com/saraph/ufmt" }
+ufmt          = { features = ["std"], path = "../../ufmt" }
 url           = { version = "2.2", features = ["serde"] }
 
-graph = { path = "../graph" }
+#graph = { path = "../graph" }
+cmake_wrap = { path = "../cmake_wrap" }

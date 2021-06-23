@@ -4,5 +4,7 @@ members = [
     "collections",
     "graph",
     "mixer",
-    "shell"
+    "shell",
+
+    "cmake_wrap"
 ]

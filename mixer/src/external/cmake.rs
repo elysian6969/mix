@@ -15,7 +15,7 @@ impl<'a> Cmake<'a> {
 
         let builderer = build.build_dir().join("build");
 
-        fs::create_dir_all(&builderer).await?;
+        fs::create_dir_all(&builderer).await.unwrap();
 
         command
             .arg("-S")
@@ -35,8 +35,8 @@ impl<'a> Cmake<'a> {
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
-        command.print(build.config(), "cmake").await?;
-        command.fancy_spawn().await?;
+        command.print(build.config(), "cmake").await.unwrap();
+        command.fancy_spawn().await.unwrap();
 
         let mut command = Command::new("cmake");
 
@@ -52,8 +52,8 @@ impl<'a> Cmake<'a> {
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
-        command.print(build.config(), "cmake").await?;
-        command.fancy_spawn().await?;
+        command.print(build.config(), "cmake").await.unwrap();
+        command.fancy_spawn().await.unwrap();
 
         let mut command = Command::new("cmake");
 
@@ -67,8 +67,8 @@ impl<'a> Cmake<'a> {
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
-        command.print(build.config(), "cmake").await?;
-        command.fancy_spawn().await?;
+        command.print(build.config(), "cmake").await.unwrap();
+        command.fancy_spawn().await.unwrap();
 
         Ok(())
     }

@@ -92,10 +92,15 @@ impl Build {
             result.unwrap_unchecked()
         };
 
-        Text::new(buffer).render(self.config().shell()).await?;
+        Text::new(buffer)
+            .render(self.config().shell())
+            .await
+            .unwrap();
 
         let _ = fs::remove_dir_all(self.build_dir()).await;
-        let entries = tar::extract(self.config(), &self.tarball(), self.build_dir()).await?;
+        let entries = tar::extract(self.config(), &self.tarball(), self.build_dir())
+            .await
+            .unwrap();
 
         if let Some(root) = entries.get(0usize) {
             let root = self.build_dir().join(&root);
@@ -103,7 +108,27 @@ impl Build {
             if root.join("CMakeLists.txt").exists() {
                 *self.0.source_dir.borrow_mut() = root;
 
-                external::cmake().execute(self).await?;
+                cmake_wrap::configure()
+                    .build_dir(self.build_dir())
+                    .source_dir(self.source_dir().deref())
+                    .prefix_dir(self.install_dir())
+                    .spawn()
+                    .unwrap()
+                    .wait()
+                    .await?;
+
+                cmake_wrap::build(self.build_dir())
+                    .jobs(8)
+                    .spawn()
+                    .unwrap()
+                    .wait()
+                    .await?;
+
+                cmake_wrap::install(self.build_dir())
+                    .spawn()
+                    .unwrap()
+                    .wait()
+                    .await?;
             } else if root.join("meson.build").exists() {
                 use external::meson::Subcommand;
 
@@ -115,24 +140,26 @@ impl Build {
                     "--wrap-mode=nodownload",
                 ];
 
-                external::meson().execute(self).await?;
+                external::meson().execute(self).await.unwrap();
 
                 external::meson()
                     .args(&args)
                     .subcommand(Subcommand::Configure)
                     .execute(self)
-                    .await?;
+                    .await
+                    .unwrap();
 
                 *self.0.source_dir.borrow_mut() = self.build_dir().to_path_buf();
 
                 external::meson()
                     .subcommand(Subcommand::Compile)
                     .execute(self)
-                    .await?;
+                    .await
+                    .unwrap()
             } else if root.join("configure").exists() {
                 *self.0.source_dir.borrow_mut() = root;
 
-                external::autotools().execute(self).await?;
+                external::autotools().execute(self).await.unwrap();
             } else {
                 println!("UNKNOWN BUILD");
             }

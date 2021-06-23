@@ -15,8 +15,8 @@ pub mod build;
 
 pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()> {
     let repositories = config.repositories().keys();
-    let graph = Graph::open(repositories).await?;
-    let requirement = VersionReq::parse("*")?;
+    let graph = Graph::open(repositories).await.unwrap();
+    let requirement = VersionReq::parse("*").unwrap();
 
     for atom in atoms {
         let package_id = PackageId::new(&atom.package);
@@ -25,12 +25,14 @@ pub async fn install(config: &Config, atoms: HashSet<Atom>) -> crate::Result<()>
         for entry in order.iter() {
             let group_id = &entry.node().group_id;
             let package_id = &entry.node().package_id;
-            let (sources, errors) = download_sources(config, &entry, &requirement).await?;
+            let (sources, errors) = download_sources(config, &entry, &requirement)
+                .await
+                .unwrap();
 
             for source in sources {
                 let build = build::Build::new(config, &entry, &source.0, &source.1);
 
-                build.build().await?;
+                build.build().await.unwrap();
             }
         }
     }

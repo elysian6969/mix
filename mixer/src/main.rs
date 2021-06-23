@@ -39,18 +39,22 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> crate::Result<()> {
+    better_panic::install();
+
     let prefix = Path::new("/milk");
-    let metadata = global::Metadata::open(&prefix.join("metadata.yml")).await?;
+    let metadata = global::Metadata::open(&prefix.join("metadata.yml"))
+        .await
+        .unwrap();
     let config = Config::builder(prefix)
         .repositories(metadata.repositories)
         .build()?;
 
-    let options = Options::from_env(&config).await?;
+    let options = Options::from_env(&config).await.unwrap();
 
     match options {
-        Options::Depend { atoms } => ops::depend(&config, atoms).await?,
-        Options::Fetch { sync: true } => ops::sync(&config).await?,
-        Options::Install { atoms } => ops::install(&config, atoms).await?,
+        Options::Depend { atoms } => ops::depend(&config, atoms).await.unwrap(),
+        Options::Fetch { sync: true } => ops::sync(&config).await.unwrap(),
+        Options::Install { atoms } => ops::install(&config, atoms).await.unwrap(),
         _ => {}
     }
 

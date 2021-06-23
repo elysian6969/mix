@@ -137,7 +137,7 @@ impl Command {
 
     pub async fn print(&self, config: &Config, action: impl fmt::Display) -> crate::Result<()> {
         unsafe {
-            let mut buffer = String::from(" -> ");
+            let mut buffer = String::from(">>> ");
 
             write!(&mut buffer, "{}", action.to_string().green())?;
 
