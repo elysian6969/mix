@@ -22,4 +22,6 @@ ufmt          = { features = ["std"], path = "../../ufmt" }
 url           = { version = "2.2", features = ["serde"] }
 
 #graph = { path = "../graph" }
+autotools_wrap = { path = "../autotools_wrap" }
 cmake_wrap = { path = "../cmake_wrap" }
+meson_wrap = { path = "../meson_wrap" }

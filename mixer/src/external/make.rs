@@ -21,8 +21,8 @@ impl<'a> Make<'a> {
             .arg("--jobs")
             .arg(build.jobs().to_string())
             .current_dir(build.source_dir().as_path())
-            .env_clear()
-            .env("PATH", "/bin")
+            //.env_clear()
+            //.env("PATH", "/bin")
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());

@@ -52,12 +52,12 @@ impl Default for Generator {
     }
 }
 
-struct Inner {
+pub(crate) struct Inner {
     inner: Command,
 }
 
 impl Inner {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let inner = Command::new("cmake");
 
         Self { inner }
@@ -85,6 +85,7 @@ impl Inner {
 
     pub fn build_dir(&mut self, path: impl AsRef<Path>) -> &mut Self {
         self.inner.arg("-B").arg(path.as_ref());
+        self.inner.current_dir(path.as_ref());
         self
     }
 
@@ -215,24 +216,17 @@ pub struct Configure {
 }
 
 impl Configure {
-    pub fn new() -> Self {
-        let inner = Inner::new();
+    pub(crate) fn new(source_dir: impl AsRef<Path>, build_dir: impl AsRef<Path>) -> Self {
+        let mut inner = Inner::new();
+
+        inner.source_dir(source_dir);
+        inner.build_dir(build_dir);
 
         Self { inner }
     }
 
     pub fn generator(&mut self, generator: Generator) -> &mut Self {
         self.inner.generator(generator);
-        self
-    }
-
-    pub fn build_dir(&mut self, path: impl AsRef<Path>) -> &mut Self {
-        self.inner.build_dir(path);
-        self
-    }
-
-    pub fn source_dir(&mut self, path: impl AsRef<Path>) -> &mut Self {
-        self.inner.source_dir(path);
         self
     }
 
@@ -326,8 +320,8 @@ impl Configure {
     }
 }
 
-pub fn configure() -> Configure {
-    Configure::new()
+pub fn configure(source_dir: impl AsRef<Path>, build_dir: impl AsRef<Path>) -> Configure {
+    Configure::new(source_dir, build_dir)
 }
 
 pub struct Build {
@@ -335,10 +329,10 @@ pub struct Build {
 }
 
 impl Build {
-    pub fn new(path: impl AsRef<Path>) -> Self {
+    pub(crate) fn new(build_dir: impl AsRef<Path>) -> Self {
         let mut inner = Inner::new();
 
-        inner.build(path);
+        inner.build(build_dir);
 
         Self { inner }
     }
@@ -353,8 +347,8 @@ impl Build {
     }
 }
 
-pub fn build(path: impl AsRef<Path>) -> Build {
-    Build::new(path)
+pub fn build(build_dir: impl AsRef<Path>) -> Build {
+    Build::new(build_dir)
 }
 
 pub struct Install {
@@ -362,10 +356,10 @@ pub struct Install {
 }
 
 impl Install {
-    pub fn new(path: impl AsRef<Path>) -> Self {
+    pub(crate) fn new(build_dir: impl AsRef<Path>) -> Self {
         let mut inner = Inner::new();
 
-        inner.install(path);
+        inner.install(build_dir);
 
         Self { inner }
     }
@@ -375,6 +369,6 @@ impl Install {
     }
 }
 
-pub fn install(path: impl AsRef<Path>) -> Install {
-    Install::new(path)
+pub fn install(build_dir: impl AsRef<Path>) -> Install {
+    Install::new(build_dir)
 }

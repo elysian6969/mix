@@ -6,5 +6,7 @@ members = [
     "mixer",
     "shell",
 
-    "cmake_wrap"
+    "autotools_wrap",
+    "cmake_wrap",
+    "meson_wrap",
 ]

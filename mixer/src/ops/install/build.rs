@@ -108,60 +108,70 @@ impl Build {
             if root.join("CMakeLists.txt").exists() {
                 *self.0.source_dir.borrow_mut() = root;
 
-                cmake_wrap::configure()
-                    .build_dir(self.build_dir())
-                    .source_dir(self.source_dir().deref())
+                cmake_wrap::configure(self.source_dir().deref(), self.build_dir())
                     .prefix_dir(self.install_dir())
-                    .spawn()
-                    .unwrap()
+                    .spawn()?
                     .wait()
                     .await?;
 
                 cmake_wrap::build(self.build_dir())
                     .jobs(8)
-                    .spawn()
-                    .unwrap()
+                    .spawn()?
                     .wait()
                     .await?;
 
                 cmake_wrap::install(self.build_dir())
-                    .spawn()
-                    .unwrap()
+                    .spawn()?
                     .wait()
                     .await?;
             } else if root.join("meson.build").exists() {
-                use external::meson::Subcommand;
-
                 *self.0.source_dir.borrow_mut() = root;
 
-                let args = [
-                    "-Dtests=false",
-                    "--buildtype=release",
-                    "--wrap-mode=nodownload",
-                ];
+                let build_dir = self.build_dir().join("build");
+                let _ = fs::create_dir(&build_dir).await;
 
-                external::meson().execute(self).await.unwrap();
+                meson_wrap::configure(self.source_dir().deref(), &build_dir)
+                    .tests(false)
+                    .build_kind("release")
+                    .prefix_dir(self.install_dir())
+                    .wrap_kind("nodownload")
+                    .spawn()?
+                    .wait()
+                    .await?;
 
-                external::meson()
-                    .args(&args)
-                    .subcommand(Subcommand::Configure)
-                    .execute(self)
-                    .await
-                    .unwrap();
+                meson_wrap::build(&build_dir).spawn()?.wait().await?;
 
-                *self.0.source_dir.borrow_mut() = self.build_dir().to_path_buf();
-
-                external::meson()
-                    .subcommand(Subcommand::Compile)
-                    .execute(self)
-                    .await
-                    .unwrap()
-            } else if root.join("configure").exists() {
+                meson_wrap::install(&build_dir).spawn()?.wait().await?;
+            } else if root.join("bootstrap").exists()
+                || root.join("configure.ac").exists()
+                || root.join("configure").exists()
+                || root.join("Makefile.ac").exists()
+            {
                 *self.0.source_dir.borrow_mut() = root;
+
+                autotools_wrap::aclocal(self.source_dir().deref())
+                    .spawn()?
+                    .wait()
+                    .await?;
+
+                autotools_wrap::autoconf(self.source_dir().deref())
+                    .spawn()?
+                    .wait()
+                    .await?;
+
+                autotools_wrap::autoheader(self.source_dir().deref())
+                    .spawn()?
+                    .wait()
+                    .await?;
+
+                autotools_wrap::automake(self.source_dir().deref())
+                    .spawn()?
+                    .wait()
+                    .await?;
 
                 external::autotools().execute(self).await.unwrap();
             } else {
-                println!("UNKNOWN BUILD");
+                println!("UNKNOWN BUILD {entries:#?}");
             }
         }
 
