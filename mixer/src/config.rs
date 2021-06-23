@@ -86,7 +86,12 @@ impl Config {
         let group = node.group_id.as_str();
         let package = node.package_id.as_str();
         let version = version.to_string();
+
+        #[cfg(target_arch = "aarch64")]
         let target = "aarch64-unknown-linux-gnu";
+
+        #[cfg(target_arch = "x86_64")]
+        let target = "x86_64-unknown-linux-gnu";
 
         let build_dir = self.build_with(|mut path| {
             path.push(&target);
