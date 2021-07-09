@@ -1,5 +1,5 @@
 use super::{Graph, Node, PackageId, Symbols};
-use crossterm::style::Colorize;
+use crossterm::style::Stylize;
 use std::collections::HashSet;
 
 pub struct Display<'graph, 'symbols> {

@@ -3,7 +3,7 @@ use crate::external;
 use crate::external::tar;
 use crate::package::{Entry, Node};
 use crate::shell::Text;
-use crossterm::style::Colorize;
+use crossterm::style::Stylize;
 use semver::Version;
 use std::cell::{self, RefCell};
 use std::ops::Deref;
@@ -149,10 +149,15 @@ impl Build {
             {
                 *self.0.source_dir.borrow_mut() = root;
 
-                autotools_wrap::aclocal(self.source_dir().deref())
-                    .spawn()?
-                    .wait()
-                    .await?;
+                let mut aclocal = autotools_wrap::aclocal(self.source_dir().deref());
+
+                let m4 = self.source_dir().deref().join("m4");
+
+                if m4.exists() {
+                    aclocal.include(m4);
+                }
+
+                aclocal.spawn()?.wait().await?;
 
                 autotools_wrap::autoconf(self.source_dir().deref())
                     .spawn()?
@@ -169,7 +174,15 @@ impl Build {
                     .wait()
                     .await?;
 
-                external::autotools().execute(self).await.unwrap();
+                autotools_wrap::bootstrap(self.source_dir().deref())
+                    .spawn()?
+                    .wait()
+                    .await?;
+
+                autotools_wrap::configure(self.source_dir().deref())
+                    .spawn()?
+                    .wait()
+                    .await?;
             } else {
                 println!("UNKNOWN BUILD {entries:#?}");
             }

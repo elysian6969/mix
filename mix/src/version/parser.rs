@@ -1,10 +1,10 @@
 use super::lexer::{Kind, Lexer, Token};
 use super::{lexer, Version};
-use semver::Identifier;
+use semver::{BuildMetadata, Prerelease};
 use std::mem;
 use ufmt::derive::uDebug;
 
-#[derive(Eq, PartialEq, uDebug, Debug)]
+#[derive(Debug)]
 pub enum Error<'a> {
     /// needed more tokens for parsing, but none are available
     UnexpectedEnd,
@@ -18,6 +18,8 @@ pub enum Error<'a> {
     EmptyPredicate,
     /// encountered an empty range
     EmptyRange,
+
+    Semver(semver::Error),
 }
 
 impl<'a> From<lexer::Error> for Error<'a> {
@@ -26,7 +28,13 @@ impl<'a> From<lexer::Error> for Error<'a> {
     }
 }
 
-impl<'a> ufmt::uDisplay for Error<'a> {
+impl<'a> From<semver::Error> for Error<'a> {
+    fn from(value: semver::Error) -> Self {
+        Error::Semver(value)
+    }
+}
+
+impl<'a> ufmt::uDebug for Error<'a> {
     fn fmt<W>(&self, fmt: &mut ufmt::Formatter<'_, W>) -> std::result::Result<(), W::Error>
     where
         W: ufmt::uWrite + ?Sized,
@@ -42,6 +50,7 @@ impl<'a> ufmt::uDisplay for Error<'a> {
             }
             Self::EmptyPredicate => fmt.write_str("encountered empty predicate"),
             Self::EmptyRange => fmt.write_str("encountered empty range"),
+            Self::Semver(error) => fmt.write_str(&format!("{error:?}")),
         }
     }
 }
@@ -180,7 +189,7 @@ impl<'a> Parser<'a> {
     /// parse an string identifier
     ///
     /// `foo`, or `bar`, or `beta-1`
-    pub fn identifier(&mut self) -> Result<Identifier, Error<'a>> {
+    pub fn identifier(&mut self) -> Result<String, Error<'a>> {
         let token = self.peek();
         let ident = match token.map(|token| token.kind()) {
             Some(Kind::Alpha(alpha)) => {
@@ -208,9 +217,9 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                Identifier::AlphaNumeric(ident)
+                ident
             }
-            Some(Kind::Numeric(numeric)) => Identifier::Numeric(*numeric),
+            Some(Kind::Numeric(numeric)) => numeric.to_string(),
             Some(_) => return Err(Error::UnexpectedToken(*token.unwrap())),
             None => return Err(Error::UnexpectedEnd),
         };
@@ -225,7 +234,7 @@ impl<'a> Parser<'a> {
             ident.push('-');
             ident.push_str(&self.identifier()?.to_string());
 
-            Ok(Identifier::AlphaNumeric(ident))
+            Ok(ident)
         } else {
             Ok(ident)
         }
@@ -234,7 +243,7 @@ impl<'a> Parser<'a> {
     /// parse all pre-release identifiers, separated by dots
     ///
     /// `abcdef.1234`
-    fn pre(&mut self) -> Result<Vec<Identifier>, Error<'a>> {
+    fn pre(&mut self) -> Result<String, Error<'a>> {
         if let Some(Kind::Hyphen) = self.peek().map(|token| token.kind()) {
             // pop the hyphen
             self.pop()?;
@@ -244,7 +253,7 @@ impl<'a> Parser<'a> {
     }
 
     /// parse a dot-separated set of identifiers
-    fn parts(&mut self) -> Result<Vec<Identifier>, Error<'a>> {
+    fn parts(&mut self) -> Result<String, Error<'a>> {
         let mut parts = vec![self.identifier()?];
 
         while let Some(Kind::Dot) = self.peek().map(|token| token.kind()) {
@@ -254,19 +263,19 @@ impl<'a> Parser<'a> {
             parts.push(self.identifier()?);
         }
 
-        Ok(parts)
+        Ok(parts.into_iter().collect())
     }
 
     /// optionally parse build metadata
     ///
     /// `+abcdef`
-    fn plus_build_metadata(&mut self) -> Result<Vec<Identifier>, Error<'a>> {
+    fn plus_build_metadata(&mut self) -> Result<String, Error<'a>> {
         match self.peek().map(|token| token.kind()) {
             Some(Kind::Plus) => {
                 // pop the plus
                 self.pop()?;
             }
-            _ => return Ok(vec![]),
+            _ => return Ok(String::new()),
         }
 
         self.parts()
@@ -282,20 +291,20 @@ impl<'a> Parser<'a> {
 
         let pre = match self.pre() {
             Ok(pre) => pre,
-            Err(_) => Vec::new(),
+            Err(_) => String::new(),
         };
 
         let build = match self.plus_build_metadata() {
             Ok(build) => build,
-            Err(_) => Vec::new(),
+            Err(_) => String::new(),
         };
 
         Ok(Version {
             major,
             minor,
             patch,
-            pre,
-            build,
+            pre: Prerelease::new(&pre)?,
+            build: BuildMetadata::new(&build)?,
         })
     }
 
@@ -309,8 +318,8 @@ impl<'a> Parser<'a> {
             major,
             minor,
             patch,
-            pre: Vec::new(),
-            build: Vec::new(),
+            pre: Prerelease::EMPTY,
+            build: BuildMetadata::EMPTY,
         })
     }
 

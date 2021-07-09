@@ -1,9 +1,9 @@
 [workspace]
-default-members = [ "mixer" ]
+default-members = [ "mix" ]
 members = [
     "collections",
     "graph",
-    "mixer",
+    "mix",
     "shell",
 
     "autotools_wrap",

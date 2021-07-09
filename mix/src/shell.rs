@@ -1,6 +1,6 @@
 // tbh this needs to be a lib in general
 
-use crossterm::style::Colorize;
+use crossterm::style::Stylize;
 use std::cell::RefCell;
 use std::fmt::Display;
 use tokio::io;

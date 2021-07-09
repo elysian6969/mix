@@ -5,7 +5,7 @@ use crate::external::tar;
 use crate::package::{Entry, Graph, PackageId};
 use crate::shell::{Colour, Line, Text};
 use crate::source::{github, gitlab, Source};
-use crossterm::style::Colorize;
+use crossterm::style::Stylize;
 use semver::{Version, VersionReq};
 use std::collections::HashSet;
 use std::path::PathBuf;

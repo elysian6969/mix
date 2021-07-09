@@ -1,7 +1,7 @@
 use self::stdio::Imp;
 use crate::config::Config;
 use crate::shell::Text;
-use crossterm::style::Colorize;
+use crossterm::style::Stylize;
 use std::ffi::OsStr;
 use std::fmt;
 use std::fmt::Write;

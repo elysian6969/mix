@@ -1,7 +1,7 @@
 use crate::atom::Atom;
 use crate::config::Config;
 use crate::shell::Text;
-use crossterm::style::Colorize;
+use crossterm::style::Stylize;
 use pico_args::Arguments;
 use std::collections::HashSet;
 use ufmt::derive::uDebug;

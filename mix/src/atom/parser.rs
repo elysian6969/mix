@@ -2,13 +2,13 @@ use super::lexer;
 use super::lexer::{Lexer, Token};
 use super::Atom;
 use core::mem;
-use semver::VersionReq;
+use semver::{BuildMetadata, Prerelease, VersionReq};
 
 pub enum Error<'input> {
     /// an error occurred in the lexer
     Lexer(lexer::Error),
     /// an error occured in the version parser
-    Semver(semver::ReqParseError),
+    Semver(semver::Error),
     /// needed more tokens for parsing, but none are available
     UnexpectedEnd,
     /// unexpected token
@@ -23,13 +23,13 @@ impl<'input> From<lexer::Error> for Error<'input> {
     }
 }
 
-impl<'input> From<semver::ReqParseError> for Error<'input> {
-    fn from(value: semver::ReqParseError) -> Self {
+impl<'input> From<semver::Error> for Error<'input> {
+    fn from(value: semver::Error) -> Self {
         Error::Semver(value)
     }
 }
 
-struct Semver<'semver>(&'semver semver::ReqParseError);
+struct Semver<'semver>(&'semver semver::Error);
 
 impl<'semver> ufmt::uDebug for Semver<'semver> {
     fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
@@ -135,7 +135,7 @@ impl<'input> Parser<'input> {
     pub fn parse(&mut self) -> Result<Atom, Error<'_>> {
         let mut group = None;
         let mut package = self.segment()?;
-        let mut version = VersionReq::any();
+        let mut version = VersionReq::STAR;
 
         if self.slash()? {
             group = Some(package);

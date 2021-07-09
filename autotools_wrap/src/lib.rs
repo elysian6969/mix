@@ -11,12 +11,14 @@ impl Aclocal {
     pub(crate) fn new(source_dir: impl AsRef<Path>) -> Self {
         let mut inner = Command::new("aclocal");
 
-        inner
-            .arg("-I")
-            .arg(source_dir.as_ref().join("m4"))
-            .current_dir(source_dir.as_ref());
+        inner.current_dir(source_dir.as_ref());
 
         Self { inner }
+    }
+
+    pub fn include(&mut self, dir: impl AsRef<Path>) -> &mut Self {
+        self.inner.arg("-I").arg(dir.as_ref());
+        self
     }
 
     pub fn spawn(&mut self) -> io::Result<Child> {
@@ -97,4 +99,51 @@ impl Automake {
 
 pub fn automake(source_dir: impl AsRef<Path>) -> Automake {
     Automake::new(source_dir)
+}
+
+pub struct Bootstrap {
+    inner: Command,
+}
+
+impl Bootstrap {
+    pub(crate) fn new(source_dir: impl AsRef<Path>) -> Self {
+        let mut inner = Command::new(source_dir.as_ref().join("bootstrap"));
+
+        inner
+            .arg("--skip-git")
+            .arg("--skip-po")
+            .current_dir(source_dir.as_ref());
+
+        Self { inner }
+    }
+
+    pub fn spawn(&mut self) -> io::Result<Child> {
+        self.inner.spawn()
+    }
+}
+
+pub fn bootstrap(source_dir: impl AsRef<Path>) -> Bootstrap {
+    Bootstrap::new(source_dir)
+}
+
+pub struct Configure {
+    inner: Command,
+}
+
+impl Configure {
+    pub(crate) fn new(source_dir: impl AsRef<Path>) -> Self {
+        let mut inner = Command::new(source_dir.as_ref().join("configure"));
+
+        inner.current_dir(source_dir.as_ref());
+
+        Self { inner }
+    }
+
+    pub fn spawn(&mut self) -> io::Result<Child> {
+        self.inner.spawn()
+    }
+}
+
+pub fn configure(source_dir: impl AsRef<Path>) -> Configure {
+    Configure::new(source_dir)
 }
