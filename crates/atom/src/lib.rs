@@ -1,7 +1,8 @@
 use id::{PackageId, RepositoryId};
 use semver::{Version, VersionReq};
-use std::fmt;
+use std::cmp::Ordering;
 use std::str::FromStr;
+use std::{cmp, fmt};
 
 #[cfg(feature = "serde")]
 mod serde;
@@ -155,5 +156,19 @@ impl fmt::Display for AtomReq {
         }
 
         Ok(())
+    }
+}
+
+impl cmp::Ord for AtomReq {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.repository_id
+            .cmp(&other.repository_id)
+            .then(self.package_id.cmp(&other.package_id))
+    }
+}
+
+impl cmp::PartialOrd for AtomReq {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
