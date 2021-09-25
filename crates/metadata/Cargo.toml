@@ -1,0 +1,19 @@
+[package]
+name    = "metadata"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies.ascii]
+version = "1.0"
+
+[dependencies.path]
+git = "https://gitdab.com/undefined/path"
+
+[dependencies.regex]
+version = "1.5"
+
+[dependencies.semver]
+version = "1.0"
+
+[dependencies.triple]
+git = "https://gitdab.com/undefined/triple"

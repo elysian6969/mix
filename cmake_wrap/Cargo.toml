@@ -1,7 +1,0 @@
-[package]
-name    = "cmake_wrap"
-version = "0.0.0"
-edition = "2018"
-
-[dependencies]
-tokio = { features = ["process"], version = "*" }

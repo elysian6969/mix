@@ -1,12 +1,32 @@
-[workspace]
-default-members = [ "mix" ]
-members = [
-    "collections",
-    "graph",
-    "mix",
-    "shell",
+[package]
+name    = "mix"
+version = "0.0.0"
+edition = "2021"
 
-    "autotools_wrap",
-    "cmake_wrap",
-    "meson_wrap",
-]
+[dependencies.clap]
+version = "3.0.0-beta.4"
+
+[dependencies.futures-util]
+version = "0.3"
+
+[dependencies.group]
+path = "crates/group"
+
+[dependencies.metadata]
+path = "crates/metadata"
+
+[dependencies.packages]
+path = "crates/packages"
+
+[dependencies.regex]
+version = "1.5"
+
+[dependencies.semver]
+version = "1.0"
+
+[dependencies.tokio]
+features = ["rt"]
+version = "1.10"
+
+[workspace]
+members = ["crates/group", "crates/metadata", "crates/packages"]
