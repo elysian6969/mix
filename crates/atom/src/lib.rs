@@ -95,7 +95,7 @@ impl FromStr for AtomReq {
         // SAFETY: `slash` is guarenteed to be a valid position within `input`.
         let repository_id = unsafe { input.get_unchecked(..slash) };
 
-        let repository_id = if repository_id.is_empty() {
+        let repository_id = if repository_id.is_empty() || repository_id == "*" {
             None
         } else {
             Some(repository_id.into())
@@ -142,11 +142,12 @@ impl fmt::Display for Atom {
 
 impl fmt::Display for AtomReq {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(repository_id) = &self.repository_id {
-            fmt.write_str(repository_id.as_str())?;
-            fmt.write_str("/")?;
+        match &self.repository_id {
+            Some(repository_id) => fmt.write_str(repository_id.as_str())?,
+            None => fmt.write_str("*")?,
         }
 
+        fmt.write_str("/")?;
         fmt.write_str(self.package_id.as_str())?;
         fmt.write_str(":")?;
         fmt.write_fmt(format_args!("{}", &self.version_hint))?;
