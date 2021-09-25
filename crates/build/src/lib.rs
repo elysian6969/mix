@@ -111,6 +111,44 @@ pub async fn build(config: Config) -> Result<()> {
             println!("{:?}", next);
         }
     } else {
+        let autogen_file = current_dir.join("autogen.sh");
+
+        if autogen_file.exists_async().await {
+            let mut command = Command::new(&autogen_file);
+
+            command
+                .current_dir(&build_dir)
+                .env_remove("CC")
+                .env_remove("CFLAGS")
+                .env_remove("CXX")
+                .env_remove("CXXFLAGS")
+                .env_remove("LIBS")
+                .arg(format!("--prefix={}", &destination))
+                .env("CC", "gcc")
+                .env("CXX", "g++")
+                .env("PREFIX", &destination)
+                .stderr(Stdio::piped())
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped());
+
+            let mut child = command.spawn()?;
+            let stdio = command_extra::Stdio::from_child(&mut child)
+                .ok_or("Failed to extract stdio from child.")?;
+            let mut lines = stdio.lines();
+
+            tokio::spawn(async move {
+                // TODO: Proper error handling!
+                let _ = child.wait().await;
+            });
+
+            while let Some(line) = lines.next().await {
+                match line? {
+                    Line::Err(line) => shell::command_err(&styles, "autogen", line),
+                    Line::Out(line) => shell::command_out(&styles, "autogen", line),
+                }
+            }
+        }
+
         let configure_file = current_dir.join("configure");
         let mut command = Command::new(&configure_file);
 
@@ -183,8 +221,6 @@ pub async fn build(config: Config) -> Result<()> {
             Value::Bool(false) => format!("--without-{k}"),
             Value::String(string) => format!("--with-{k}={string}"),
         }));
-
-        println!("{command:?}");
 
         let mut child = command.spawn()?;
         let stdio = command_extra::Stdio::from_child(&mut child)
