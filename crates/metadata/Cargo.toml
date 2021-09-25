@@ -1,10 +1,13 @@
 [package]
-name    = "metadata"
+name    = "milk_metadata"
 version = "0.0.0"
 edition = "2021"
 
-[dependencies.ascii]
-version = "1.0"
+[dependencies.milk_id]
+path = "../id"
+
+[dependencies.milk_triple]
+path = "../triple"
 
 [dependencies.path]
 git = "https://gitdab.com/undefined/path"
@@ -15,5 +18,3 @@ version = "1.5"
 [dependencies.semver]
 version = "1.0"
 
-[dependencies.triple]
-git = "https://gitdab.com/undefined/triple"

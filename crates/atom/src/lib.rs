@@ -1,5 +1,5 @@
 use crate::error::Error;
-use id::{PackageId, RepositoryId};
+use milk_id::{PackageId, RepositoryId};
 use semver::{Version, VersionReq};
 use std::cmp::Ordering;
 use std::convert::TryInto;

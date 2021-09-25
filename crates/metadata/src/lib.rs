@@ -1,15 +1,7 @@
-use path::{Path, PathBuf};
-use regex::Regex;
+use milk_id::{PackageId, RepositoryId};
+use milk_triple::Triple;
 use semver::{Version, VersionReq};
-use serde::{Deserialize, Serialize};
-use std::path::Components;
-use triple::Triple;
-
-pub use crate::package_id::PackageId;
-pub use crate::repository_id::RepositoryId;
-
-mod package_id;
-mod repository_id;
+//use serde::{Deserialize, Serialize};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -20,14 +12,14 @@ pub struct InstalledMetadata {
     version: Version,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+/*#[derive(Clone, Debug, Deserialize, Serialize)]
 #[non_exhaustive]
 pub struct Metadata {
     source: Vec<String>,
     depend: Vec<String>,
-}
+}*/
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Dependency {
     repository_id: RepositoryId,
     package_id: PackageId,
@@ -45,7 +37,7 @@ impl Dependency {
         version_hint: impl Into<Option<VersionReq>>,
     ) -> Self {
         let repository_id = repository_id.into();
-        let package_id = packags_id.into();
+        let package_id = package_id.into();
         let version_hint = version_hint.into();
 
         Self {
@@ -56,7 +48,7 @@ impl Dependency {
     }
 }
 
-#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+/*#[derive(Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PackageId {
     /// The repository this package belongs to.
     repository_id: RepositoryId,
@@ -203,4 +195,4 @@ impl<'a> Iterator for Wrapper<'a> {
 
 unsafe fn extend_ref<'a, 'b, T: ?Sized>(val: &'a T) -> &'b T {
     &*(val as *const T)
-}
+}*/

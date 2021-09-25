@@ -1,9 +1,9 @@
 [package]
-name    = "manifest"
+name    = "milk_manifest"
 version = "0.0.0"
 edition = "2018"
 
-[dependencies.atom]
+[dependencies.milk_atom]
 features = ["serde"]
 path = "../atom"
 

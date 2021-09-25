@@ -9,13 +9,13 @@ version = "3.0.0-beta.4"
 [dependencies.futures-util]
 version = "0.3"
 
-[dependencies.group]
+[dependencies.milk_group]
 path = "crates/group"
 
-[dependencies.metadata]
+[dependencies.milk_metadata]
 path = "crates/metadata"
 
-[dependencies.packages]
+[dependencies.milk_packages]
 path = "crates/packages"
 
 [dependencies.regex]

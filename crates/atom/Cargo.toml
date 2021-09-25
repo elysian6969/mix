@@ -1,9 +1,9 @@
 [package]
-name    = "atom"
+name    = "milk_atom"
 version = "0.0.0"
 edition = "2021"
 
-[dependencies.id]
+[dependencies.milk_id]
 path = "../id"
 
 [dependencies.semver]

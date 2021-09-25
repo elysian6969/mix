@@ -1,10 +1,13 @@
 [package]
-name    = "group"
+name    = "milk_group"
 version = "0.0.0"
 edition = "2021"
 
-[dependencies.metadata]
+[dependencies.milk_metadata]
 path = "../metadata"
+
+[dependencies.milk_triple]
+path = "../triple"
 
 [dependencies.path]
 git = "https://gitdab.com/undefined/path"

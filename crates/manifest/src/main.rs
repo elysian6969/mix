@@ -67,7 +67,6 @@ fn error(
     println!("{:?}", &message);
 
     if message.contains("invalid type: map, expected atom requirement") {
-        let atom = AtomReq::from_str(&manifest[start..end]);
         let diagnostic = Diagnostic::error()
             .with_message("failed to parse manifest")
             .with_labels(vec![
@@ -78,7 +77,6 @@ fn error(
     }
 
     if message.contains("unexpected character in package id") {
-        let atom = AtomReq::from_str(&manifest[start..end]);
         let diagnostic = Diagnostic::error()
             .with_message("failed to parse manifest")
             .with_labels(vec![
@@ -89,7 +87,6 @@ fn error(
     }
 
     if message.contains("unexpected character in repository id") {
-        let atom = AtomReq::from_str(&manifest[start..end]);
         let diagnostic = Diagnostic::error()
             .with_message("failed to parse manifest")
             .with_labels(vec![

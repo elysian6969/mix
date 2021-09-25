@@ -1,0 +1,73 @@
+use clap::{AppSettings, Clap};
+use path::PathBuf;
+use std::str::FromStr;
+
+#[derive(Debug)]
+pub enum Value {
+    Bool(bool),
+    String(String),
+}
+
+fn parse_key_val<'s, T>(s: &'s str) -> crate::Result<(T, Value)>
+where
+    T: From<&'s str>,
+{
+    let (k, v) = s
+        .split_once('=')
+        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{}`", s))?;
+
+    let k = k.into();
+    let v = bool::from_str(v)
+        .map(Value::Bool)
+        .ok()
+        .or_else(|| Some(Value::String(v.into())))
+        .unwrap();
+
+    Ok((k, v))
+}
+
+#[derive(Clap, Debug)]
+#[clap(setting = AppSettings::ColoredHelp)]
+pub struct Options {
+    /// Prefix directory.
+    #[clap(default_value = "/milk", long, parse(from_os_str))]
+    pub prefix: PathBuf,
+
+    /// Target triple.
+    #[clap(default_value = "x86_64-linux-gnu", long)]
+    pub triple: String,
+
+    /// Repository identifier.
+    #[clap(long)]
+    pub repository_id: String,
+
+    /// Package identifier.
+    #[clap(long)]
+    pub package_id: String,
+
+    /// Package version.
+    #[clap(long)]
+    pub version: String,
+
+    /// Jobs to build with.
+    #[clap(long)]
+    pub jobs: usize,
+
+    /// Maps to `--enable/--disable`.
+    #[clap(long, multiple_occurrences = true, parse(try_from_str = parse_key_val), short = 'D')]
+    pub define: Vec<(String, Value)>,
+
+    /// Maps to `--with/--without`.
+    #[clap(long, multiple_occurrences = true, parse(try_from_str = parse_key_val), short = 'I')]
+    pub include: Vec<(String, Value)>,
+
+    /// Whether this package requires a seperate build directory.
+    #[clap(long)]
+    pub build_dir: bool,
+}
+
+impl Options {
+    pub fn parse() -> Self {
+        <Self as Clap>::parse()
+    }
+}

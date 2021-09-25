@@ -1,0 +1,29 @@
+[package]
+name    = "milk_build"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies.futures-util]
+version = "0.3"
+
+[dependencies.clap]
+version = "3.0.0-beta"
+
+[dependencies.command_extra]
+git = "https://gitdab.com/undefined/command_extra"
+
+[dependencies.path]
+git = "https://gitdab.com/undefined/path"
+
+[dependencies.milk_id]
+path = "../id"
+
+[dependencies.milk_triple]
+path = "../triple"
+
+[dependencies.tokio]
+features = ["io-util", "process", "macros", "rt", "sync"]
+version = "1.11"
+
+[dependencies.yansi]
+version = "0.5" 
