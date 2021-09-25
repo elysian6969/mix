@@ -5,7 +5,7 @@ use codespan_reporting::term;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use codespan_reporting::term::{Chars, Config};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
 use std::io;
 use std::str::FromStr;
 use tokio::runtime::Builder;
@@ -13,7 +13,7 @@ use tokio::runtime::Builder;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Manifest {
     #[serde(default, rename = "depends")]
-    dependencies: HashSet<AtomReq>,
+    dependencies: BTreeSet<AtomReq>,
     #[serde(default, rename = "source")]
     sources: BTreeSet<String>,
 }
@@ -62,7 +62,7 @@ fn error(
     let end = start + rest.find('\n').unwrap_or(rest.len());
 
     let diagnostic = Diagnostic::error()
-        .with_message("manifest validation failure")
+        .with_message("failed to parse manifest")
         .with_labels(vec![Label::primary((), end..end).with_message("?")]);
 
     term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
