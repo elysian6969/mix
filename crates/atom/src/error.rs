@@ -1,14 +1,14 @@
-use std::fmt;
+use std::{error, fmt};
 
 #[derive(Debug)]
 pub enum Error {
     ExpectedPackageId,
-    Id(id::Error),
+    Id(milk_id::Error),
     Semver(semver::Error),
 }
 
-impl From<id::Error> for Error {
-    fn from(error: id::Error) -> Self {
+impl From<milk_id::Error> for Error {
+    fn from(error: milk_id::Error) -> Self {
         Self::Id(error)
     }
 }
@@ -32,3 +32,5 @@ impl fmt::Display for Error {
         Ok(())
     }
 }
+
+impl error::Error for Error {}

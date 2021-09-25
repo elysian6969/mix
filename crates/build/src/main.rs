@@ -6,6 +6,7 @@ use crate::options::{Options, Value};
 use crate::shell::Styles;
 use command_extra::Line;
 use futures_util::stream::StreamExt;
+use milk_triple::Triple;
 use path::{Path, PathBuf};
 use std::env;
 use std::ffi::{OsStr, OsString};
@@ -21,12 +22,16 @@ mod options;
 
 async fn async_main() -> Result<()> {
     let options = Options::parse();
+    let repository_id = options.atom.repository_id.unwrap_or("core".try_into()?);
+    let package_id = options.atom.package_id;
+    let version = options.atom.version;
+
     let destination = options
         .prefix
-        .join(&options.triple)
-        .join(&options.repository_id)
-        .join(&options.package_id)
-        .join(&options.version);
+        .join(options.triple.as_str())
+        .join(repository_id.as_str())
+        .join(package_id.as_str())
+        .join(version.to_string());
 
     let current_dir: PathBuf = env::current_dir()?.into();
     let build_dir = if options.build_dir {
@@ -44,9 +49,9 @@ async fn async_main() -> Result<()> {
 
     shell::header(&styles, "prefix", &options.prefix);
     shell::header(&styles, "triple", &options.triple);
-    shell::header(&styles, "repository_id", &options.repository_id);
-    shell::header(&styles, "package_id", &options.package_id);
-    shell::header(&styles, "version", &options.version);
+    shell::header(&styles, "repository_id", &repository_id);
+    shell::header(&styles, "package_id", &package_id);
+    shell::header(&styles, "version", &version);
     shell::header(&styles, "destination", &destination);
 
     enum CargoAction {
@@ -148,7 +153,7 @@ async fn async_main() -> Result<()> {
 
         command.env("CFLAGS", &joined);*/
 
-        if options.triple == "i686-linux-gnu" {
+        if options.triple == Triple::i686() {
             command.env("CFLAGS", "-m32").env("CXXFLAGS:", "-m32");
         }
 

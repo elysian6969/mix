@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{error, fmt};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error {
@@ -39,3 +39,5 @@ impl fmt::Display for Error {
         Ok(())
     }
 }
+
+impl error::Error for Error {}

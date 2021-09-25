@@ -1,4 +1,7 @@
 use clap::{AppSettings, Clap};
+use milk_atom::Atom;
+use milk_id::{PackageId, RepositoryId};
+use milk_triple::Triple;
 use path::PathBuf;
 use std::str::FromStr;
 
@@ -34,23 +37,14 @@ pub struct Options {
     pub prefix: PathBuf,
 
     /// Target triple.
-    #[clap(default_value = "x86_64-linux-gnu", long)]
-    pub triple: String,
+    #[clap(default_value = Triple::host().as_str(), long)]
+    pub triple: Triple,
 
-    /// Repository identifier.
-    #[clap(long)]
-    pub repository_id: String,
-
-    /// Package identifier.
-    #[clap(long)]
-    pub package_id: String,
-
-    /// Package version.
-    #[clap(long)]
-    pub version: String,
+    /// Package to install.
+    pub atom: Atom,
 
     /// Jobs to build with.
-    #[clap(long)]
+    #[clap(long, short)]
     pub jobs: usize,
 
     /// Maps to `--enable/--disable`.

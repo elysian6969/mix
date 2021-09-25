@@ -13,16 +13,16 @@ mod serde;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Atom {
-    repository_id: Option<RepositoryId>,
-    package_id: PackageId,
-    version: Version,
+    pub repository_id: Option<RepositoryId>,
+    pub package_id: PackageId,
+    pub version: Version,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct AtomReq {
-    repository_id: Option<RepositoryId>,
-    package_id: PackageId,
-    version_hint: VersionReq,
+    pub repository_id: Option<RepositoryId>,
+    pub package_id: PackageId,
+    pub version_hint: VersionReq,
 }
 
 impl FromStr for Atom {

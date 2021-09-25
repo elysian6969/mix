@@ -7,6 +7,7 @@ edition = "2021"
 version = "0.3"
 
 [dependencies.clap]
+features = ["wrap_help"]
 version = "3.0.0-beta"
 
 [dependencies.command_extra]
@@ -15,11 +16,17 @@ git = "https://gitdab.com/undefined/command_extra"
 [dependencies.path]
 git = "https://gitdab.com/undefined/path"
 
+[dependencies.milk_atom]
+path = "../atom"
+
 [dependencies.milk_id]
 path = "../id"
 
 [dependencies.milk_triple]
 path = "../triple"
+
+[dependencies.semver]
+version = "1.0"
 
 [dependencies.tokio]
 features = ["io-util", "process", "macros", "rt", "sync"]
