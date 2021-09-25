@@ -6,10 +6,6 @@ edition = "2021"
 [dependencies.futures-util]
 version = "0.3"
 
-[dependencies.clap]
-features = ["wrap_help"]
-version = "3.0.0-beta"
-
 [dependencies.command_extra]
 git = "https://gitdab.com/undefined/command_extra"
 
@@ -29,7 +25,7 @@ path = "../triple"
 version = "1.0"
 
 [dependencies.tokio]
-features = ["io-util", "process", "macros", "rt", "sync"]
+features = ["io-util", "process", "macros", "sync"]
 version = "1.11"
 
 [dependencies.yansi]

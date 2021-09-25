@@ -1,44 +1,16 @@
-#![feature(format_args_capture)]
-
 use crate::options::Options;
-use packages::Packages;
-use path::Path;
-use regex::Regex;
-use std::time::Instant;
 use tokio::runtime::Builder;
+
+pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 mod options;
 
-type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
-type Result<T, E = Error> = std::result::Result<T, E>;
+async fn async_main() -> Result<()> {
+    let options = Options::parse();
 
-fn default_prefix() -> &'static Path {
-    Path::new("/milk")
-}
-
-async fn run() -> Result<()> {
-    group::Package::from_path("/milk", "/milk/repo/core/glibc/metadata.yml").await?;
-
-    let _options = Options::parse();
-    let now = Instant::now();
-    let packages = Packages::from_path(default_prefix()).await?;
-    let elapsed = now.elapsed();
-
-    println!(">>> loading packages took {elapsed:?}");
-
-    for package in packages.iter() {
-        println!("    {package:?}");
-    }
-
-    let now = Instant::now();
-    let regex = Regex::new("f").unwrap();
-    let matches = packages.get_matches_package(&regex);
-    let elapsed = now.elapsed();
-
-    println!(">>> resolve took {elapsed:?}");
-
-    for package in matches {
-        println!("    {package:?}");
+    match options {
+        Options::Build(build) => milk_build::build(build.into_config()).await?,
     }
 
     Ok(())
@@ -48,7 +20,61 @@ fn main() -> Result<()> {
     Builder::new_current_thread()
         .enable_all()
         .build()?
-        .block_on(run())?;
+        .block_on(async_main())
+}
 
-    Ok(())
+pub mod shell {
+    use std::fmt::Display;
+    use yansi::{Color, Style};
+
+    pub struct Styles {
+        decoration: &'static str,
+        decoration_style: Style,
+        action_style: Style,
+        arguments_style: Style,
+        command_style: Style,
+        output_style: Style,
+        output_err_style: Style,
+    }
+
+    impl Default for Styles {
+        fn default() -> Self {
+            Self {
+                decoration: " >",
+                decoration_style: Style::new(Color::White).dimmed(),
+                action_style: Style::default(),
+                arguments_style: Style::new(Color::Magenta),
+                command_style: Style::new(Color::Green),
+                output_style: Style::default(),
+                output_err_style: Style::new(Color::Red),
+            }
+        }
+    }
+
+    pub fn header(styles: &Styles, action: impl Display, arguments: impl Display) {
+        println!(
+            "{decoration} {action: <13} {arguments}",
+            decoration = styles.decoration_style.paint(&styles.decoration),
+            action = styles.action_style.paint(&action),
+            arguments = styles.arguments_style.paint(&arguments),
+        );
+    }
+
+    pub fn command_out(styles: &Styles, command: impl Display, output: impl Display) {
+        println!(
+            "{decoration} {command} {output}",
+            decoration = styles.decoration_style.paint(&styles.decoration),
+            command = styles.command_style.paint(&command),
+            output = styles.output_style.paint(&output),
+        );
+    }
+
+    pub fn command_err(styles: &Styles, command: impl Display, output: impl Display) {
+        println!(
+            "{decoration} {command} {output}",
+            decoration = styles.decoration_style.paint(&styles.decoration),
+            command = styles.command_style.paint(&command),
+            output = styles.output_err_style.paint(&output),
+        );
+    }
 }

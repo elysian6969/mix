@@ -1,26 +1,12 @@
-use clap::Clap;
+use clap::{AppSettings, Clap};
 
-#[derive(Clap)]
+mod build;
+
+#[derive(Clap, Debug)]
+#[clap(setting = AppSettings::ColoredHelp)]
 pub enum Options {
-    /// Install packages
-    Install,
-
-    /// Search packages
-    Search(Search),
-
-    /// Uninstall packages
-    Uninstall,
-}
-
-#[derive(Clap)]
-pub struct Search {
-    /// Search installed packages
-    #[clap(long, short)]
-    installed: bool,
-
-    /// Searched not installed packages
-    #[clap(long, short)]
-    uninstalled: bool,
+    /// Build a package.
+    Build(build::Options),
 }
 
 impl Options {

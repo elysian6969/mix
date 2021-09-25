@@ -1,15 +1,10 @@
-use clap::{AppSettings, Clap};
+use clap::Clap;
 use milk_atom::Atom;
+use milk_build::{Config, Value};
 use milk_id::{PackageId, RepositoryId};
 use milk_triple::Triple;
 use path::PathBuf;
 use std::str::FromStr;
-
-#[derive(Debug)]
-pub enum Value {
-    Bool(bool),
-    String(String),
-}
 
 fn parse_key_val<'s, T>(s: &'s str) -> crate::Result<(T, Value)>
 where
@@ -30,7 +25,6 @@ where
 }
 
 #[derive(Clap, Debug)]
-#[clap(setting = AppSettings::ColoredHelp)]
 pub struct Options {
     /// Prefix directory.
     #[clap(default_value = "/milk", long, parse(from_os_str))]
@@ -63,5 +57,17 @@ pub struct Options {
 impl Options {
     pub fn parse() -> Self {
         <Self as Clap>::parse()
+    }
+
+    pub fn into_config(self) -> Config {
+        Config {
+            prefix: self.prefix,
+            triple: self.triple,
+            atom: self.atom,
+            jobs: self.jobs,
+            define: self.define,
+            include: self.include,
+            build_dir: self.build_dir,
+        }
     }
 }

@@ -2,10 +2,10 @@
 #![feature(command_access)]
 #![feature(format_args_capture)]
 
-use crate::options::{Options, Value};
 use crate::shell::Styles;
 use command_extra::Line;
 use futures_util::stream::StreamExt;
+use milk_atom::Atom;
 use milk_triple::Triple;
 use path::{Path, PathBuf};
 use std::env;
@@ -18,23 +18,38 @@ pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 mod autotools;
-mod options;
 
-async fn async_main() -> Result<()> {
-    let options = Options::parse();
-    let repository_id = options.atom.repository_id.unwrap_or("core".try_into()?);
-    let package_id = options.atom.package_id;
-    let version = options.atom.version;
+#[derive(Debug)]
+pub enum Value {
+    Bool(bool),
+    String(String),
+}
 
-    let destination = options
+#[derive(Debug)]
+pub struct Config {
+    pub prefix: PathBuf,
+    pub triple: Triple,
+    pub atom: Atom,
+    pub jobs: usize,
+    pub define: Vec<(String, Value)>,
+    pub include: Vec<(String, Value)>,
+    pub build_dir: bool,
+}
+
+pub async fn build(config: Config) -> Result<()> {
+    let repository_id = config.atom.repository_id.unwrap_or("core".try_into()?);
+    let package_id = config.atom.package_id;
+    let version = config.atom.version;
+
+    let destination = config
         .prefix
-        .join(options.triple.as_str())
+        .join(config.triple.as_str())
         .join(repository_id.as_str())
         .join(package_id.as_str())
         .join(version.to_string());
 
     let current_dir: PathBuf = env::current_dir()?.into();
-    let build_dir = if options.build_dir {
+    let build_dir = if config.build_dir {
         let build_dir = current_dir.join("build");
 
         // TODO: Proper error handling,
@@ -47,8 +62,8 @@ async fn async_main() -> Result<()> {
 
     let styles = Styles::default();
 
-    shell::header(&styles, "prefix", &options.prefix);
-    shell::header(&styles, "triple", &options.triple);
+    shell::header(&styles, "prefix", &config.prefix);
+    shell::header(&styles, "triple", &config.triple);
     shell::header(&styles, "repository_id", &repository_id);
     shell::header(&styles, "package_id", &package_id);
     shell::header(&styles, "version", &version);
@@ -76,7 +91,7 @@ async fn async_main() -> Result<()> {
 
         command
             .arg("build")
-            .arg(format!("--jobs={}", options.jobs))
+            .arg(format!("--jobs={}", config.jobs))
             .arg("--release")
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
@@ -153,17 +168,17 @@ async fn async_main() -> Result<()> {
 
         command.env("CFLAGS", &joined);*/
 
-        if options.triple == Triple::i686() {
+        if config.triple == Triple::i686() {
             command.env("CFLAGS", "-m32").env("CXXFLAGS:", "-m32");
         }
 
-        command.args(options.define.iter().map(|(k, v)| match v {
+        command.args(config.define.iter().map(|(k, v)| match v {
             Value::Bool(true) => format!("--enable-{k}"),
             Value::Bool(false) => format!("--disable-{k}"),
             Value::String(string) => format!("--enable-{k}={string}"),
         }));
 
-        command.args(options.include.iter().map(|(k, v)| match v {
+        command.args(config.include.iter().map(|(k, v)| match v {
             Value::Bool(true) => format!("--with-{k}"),
             Value::Bool(false) => format!("--without-{k}"),
             Value::String(string) => format!("--with-{k}={string}"),
@@ -197,7 +212,7 @@ async fn async_main() -> Result<()> {
         make.env_remove("CXXFLAGS");
         make.env_remove("LIBS");
 
-        make.arg(format!("-j{}", options.jobs))
+        make.arg(format!("-j{}", config.jobs))
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
@@ -231,7 +246,7 @@ async fn async_main() -> Result<()> {
         make.env_remove("LIBS");
 
         make.arg("install")
-            .arg(format!("-j{}", options.jobs))
+            .arg(format!("-j{}", config.jobs))
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
@@ -257,13 +272,6 @@ async fn async_main() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn main() -> Result<()> {
-    Builder::new_current_thread()
-        .enable_all()
-        .build()?
-        .block_on(async_main())
 }
 
 pub mod shell {
