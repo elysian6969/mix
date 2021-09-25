@@ -67,15 +67,15 @@ pub struct PackageId {
     /// Metadata for this package.
     ///
     /// `{prefix}/repo/{repository_id}/{package_name}/metadata.yml`
-    metadata_path: Option<PathBuf>,
+    metadata_path: Option<Box<Path>>,
 
     /// Installed paths for this package. Dependant on triple and version.
     ///
     /// `{prefix}/{triple}/{repository_id}/{package_name}/{version}`
-    installed_paths: BTreeMap<InstalledMetadata, PathBuf>,
+    installed_paths: BTreeMap<InstalledMetadata, Box<Path>>,
 
     /// List of sources to build this package.
-    sources: BTreeSet<String>,
+    sources: BTreeSet<Box<str>>,
 
     /// List of dependencies for this package.
     dependencies: BTreeMap<Dependency>,
@@ -106,9 +106,9 @@ pub impl PackageId {
         let group = components.next().ok_or("Expected group.")?;
         let package = components.next().ok_or("Expected package.")?;
 
-        let group = RepositoryIdId::new(group);
-        let package = PackageIdId::new(package);
-        let metadata = path.async_read().await?;
+        let group = RepositoryId::new(group);
+        let package = PackageId::new(package);
+        let metadata = path.read_async().await?;
         let Metadata { source, depend, .. } = serde_yaml::from_slice(&metadata)?;
 
         self.metadata_path = Some(path.to_path_buf());
@@ -183,7 +183,7 @@ pub impl PackageId {
     }
 
     pub async fn exists(&self) -> bool {
-        self.path().exists().await
+        self.path().exists_async().await
     }
 }
 

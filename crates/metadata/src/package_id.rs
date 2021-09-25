@@ -1,42 +1,56 @@
 use std::borrow::Borrow;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct RepositoryId {
-    repr: String,
+pub struct PackageId {
+    repr: Box<str>,
 }
 
-impl RepositoryId {
-    pub fn new(repository_id: impl Into<String>) -> Self {
+impl PackageId {
+    pub fn new(id: impl Into<Box<str>>) -> Self {
+        Self { repr: id.into() }
+    }
+}
+
+impl From<Box<str>> for PackageId {
+    fn from(id: Box<str>) -> Self {
+        Self { repr: id }
+    }
+}
+
+impl From<&str> for PackageId {
+    fn from(id: &str) -> Self {
         Self {
-            repr: repository_id.into(),
+            repr: id.to_owned().into_boxed_str(),
         }
     }
 }
 
-impl From<&str> for RepositoryId {
-    fn from(repository_id: &str) -> Self {
+impl From<&&str> for PackageId {
+    fn from(id: &&str) -> Self {
         Self {
-            repr: repository_id.into(),
+            repr: (*id).to_owned().into_boxed_str(),
         }
     }
 }
 
-impl From<String> for RepositoryId {
-    fn from(repository_id: String) -> Self {
+impl From<String> for PackageId {
+    fn from(id: String) -> Self {
         Self {
-            repr: repository_id,
+            repr: id.into_boxed_str(),
         }
     }
 }
 
-impl Borrow<str> for RepositoryId {
+impl From<&String> for PackageId {
+    fn from(id: &String) -> Self {
+        Self {
+            repr: id.into_boxed_str(),
+        }
+    }
+}
+
+impl Borrow<str> for PackageId {
     fn borrow(&self) -> &str {
-        &self.repr[..]
-    }
-}
-
-impl Borrow<String> for RepositoryId {
-    fn borrow(&self) -> &String {
         &self.repr
     }
 }

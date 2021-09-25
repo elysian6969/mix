@@ -2,41 +2,55 @@ use std::borrow::Borrow;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RepositoryId {
-    repr: String,
+    repr: Box<str>,
 }
 
 impl RepositoryId {
-    pub fn new(repository_id: impl Into<String>) -> Self {
-        Self {
-            repr: repository_id.into(),
-        }
+    pub fn new(id: impl Into<Box<str>>) -> Self {
+        Self { repr: id.into() }
+    }
+}
+
+impl From<Box<str>> for RepositoryId {
+    fn from(id: Box<str>) -> Self {
+        Self { repr: id }
     }
 }
 
 impl From<&str> for RepositoryId {
-    fn from(repository_id: &str) -> Self {
+    fn from(id: &str) -> Self {
         Self {
-            repr: repository_id.into(),
+            repr: id.to_owned().into_boxed_str(),
+        }
+    }
+}
+
+impl From<&&str> for RepositoryId {
+    fn from(id: &&str) -> Self {
+        Self {
+            repr: (*id).to_owned().into_boxed_str(),
         }
     }
 }
 
 impl From<String> for RepositoryId {
-    fn from(repository_id: String) -> Self {
+    fn from(id: String) -> Self {
         Self {
-            repr: repository_id,
+            repr: id.into_boxed_str(),
+        }
+    }
+}
+
+impl From<&String> for RepositoryId {
+    fn from(id: &String) -> Self {
+        Self {
+            repr: id.into_boxed_str(),
         }
     }
 }
 
 impl Borrow<str> for RepositoryId {
     fn borrow(&self) -> &str {
-        &self.repr[..]
-    }
-}
-
-impl Borrow<String> for RepositoryId {
-    fn borrow(&self) -> &String {
         &self.repr
     }
 }
