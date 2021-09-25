@@ -142,15 +142,17 @@ impl fmt::Display for Atom {
 
 impl fmt::Display for AtomReq {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        match &self.repository_id {
-            Some(repository_id) => fmt.write_str(repository_id.as_str())?,
-            None => fmt.write_str("*")?,
+        if let Some(repository_id) = &self.repository_id {
+            fmt.write_str(repository_id.as_str())?;
+            fmt.write_str("/")?;
         }
 
-        fmt.write_str("/")?;
         fmt.write_str(self.package_id.as_str())?;
-        fmt.write_str(":")?;
-        fmt.write_fmt(format_args!("{}", &self.version_hint))?;
+
+        if self.version_hint != VersionReq::STAR {
+            fmt.write_str(":")?;
+            fmt.write_fmt(format_args!("{}", &self.version_hint))?;
+        }
 
         Ok(())
     }
