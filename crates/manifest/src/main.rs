@@ -1,14 +1,12 @@
-use atom::{Atom, AtomReq};
+use atom::AtomReq;
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use codespan_reporting::term::{Chars, Config};
-use semver::VersionReq;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashSet};
 use std::io;
-use std::path::Path;
 use std::str::FromStr;
 use tokio::runtime::Builder;
 
