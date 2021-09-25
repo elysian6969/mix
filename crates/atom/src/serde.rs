@@ -58,7 +58,7 @@ impl<'de> Deserialize<'de> for AtomReq {
             type Value = AtomReq;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("atom")
+                formatter.write_str("atom requirement")
             }
 
             fn visit_str<E>(self, string: &str) -> Result<Self::Value, E>

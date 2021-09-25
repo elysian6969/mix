@@ -1,8 +1,12 @@
+use crate::error::Error;
 use id::{PackageId, RepositoryId};
 use semver::{Version, VersionReq};
 use std::cmp::Ordering;
+use std::convert::TryInto;
 use std::str::FromStr;
 use std::{cmp, fmt};
+
+mod error;
 
 #[cfg(feature = "serde")]
 mod serde;
@@ -22,7 +26,7 @@ pub struct AtomReq {
 }
 
 impl FromStr for Atom {
-    type Err = &'static str;
+    type Err = Error;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         // If there is no slash, set to start of input.
@@ -45,7 +49,7 @@ impl FromStr for Atom {
         let repository_id = if repository_id.is_empty() {
             None
         } else {
-            Some(repository_id.into())
+            Some(repository_id.try_into()?)
         };
 
         // SAFETY: `slash + 1` and `colon` is guarenteed to be a valid position within `input`.
@@ -55,28 +59,24 @@ impl FromStr for Atom {
         };
 
         if package_id.is_empty() {
-            return Err("Expected package ID.");
+            return Err(Error::ExpectedPackageId);
         }
 
         // SAFETY: `colon + 1` is guarenteed to be a valid position within `input`.
         //         `colon + 1` is guarenteed to be <= `input.len()`.
         let version = unsafe { input.get_unchecked(colon.saturating_add(1).min(input.len())..) };
-        let version = Version::parse(version);
-        let version = match version {
-            Ok(version) => version,
-            Err(_) => return Err("Invalid version"),
-        };
+        let version = Version::parse(version)?;
 
         Ok(Self {
             repository_id,
-            package_id: package_id.into(),
+            package_id: package_id.try_into()?,
             version,
         })
     }
 }
 
 impl FromStr for AtomReq {
-    type Err = &'static str;
+    type Err = Error;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         // If there is no slash, set to start of input.
@@ -99,7 +99,7 @@ impl FromStr for AtomReq {
         let repository_id = if repository_id.is_empty() || repository_id == "*" {
             None
         } else {
-            Some(repository_id.into())
+            Some(repository_id.try_into()?)
         };
 
         // SAFETY: `slash + 1` and `colon` is guarenteed to be a valid position within `input`.
@@ -109,7 +109,7 @@ impl FromStr for AtomReq {
         };
 
         if package_id.is_empty() {
-            return Err("Expected package ID.");
+            return Err(Error::ExpectedPackageId);
         }
 
         // SAFETY: `colon + 1` is guarenteed to be a valid position within `input`.
@@ -120,7 +120,7 @@ impl FromStr for AtomReq {
 
         Ok(Self {
             repository_id,
-            package_id: package_id.into(),
+            package_id: package_id.try_into()?,
             version_hint,
         })
     }

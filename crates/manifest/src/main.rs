@@ -40,6 +40,7 @@ impl From<io::Error> for Error {
     }
 }
 
+// TODO: Reconstruct error from display of serde_yaml::Error.
 impl From<serde_yaml::Error> for Error {
     fn from(error: serde_yaml::Error) -> Self {
         Error::Serde(error)
@@ -61,11 +62,42 @@ fn error(
     let rest = &manifest[start..];
     let end = start + rest.find('\n').unwrap_or(rest.len());
 
-    let diagnostic = Diagnostic::error()
-        .with_message("failed to parse manifest")
-        .with_labels(vec![Label::primary((), end..end).with_message("?")]);
+    let message = error.to_string();
 
-    term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
+    println!("{:?}", &message);
+
+    if message.contains("invalid type: map, expected atom requirement") {
+        let atom = AtomReq::from_str(&manifest[start..end]);
+        let diagnostic = Diagnostic::error()
+            .with_message("failed to parse manifest")
+            .with_labels(vec![
+                Label::primary((), end..end).with_message("invalid atom, wrap it in \"\"")
+            ]);
+
+        term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
+    }
+
+    if message.contains("unexpected character in package id") {
+        let atom = AtomReq::from_str(&manifest[start..end]);
+        let diagnostic = Diagnostic::error()
+            .with_message("failed to parse manifest")
+            .with_labels(vec![
+                Label::primary((), start..end).with_message("unexpected character in package id")
+            ]);
+
+        term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
+    }
+
+    if message.contains("unexpected character in repository id") {
+        let atom = AtomReq::from_str(&manifest[start..end]);
+        let diagnostic = Diagnostic::error()
+            .with_message("failed to parse manifest")
+            .with_labels(vec![
+                Label::primary((), start..end).with_message("unexpected character in package id")
+            ]);
+
+        term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
+    }
 
     Ok(())
 }

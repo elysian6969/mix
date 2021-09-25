@@ -1,4 +1,6 @@
+use crate::{util, Error, ErrorKind};
 use std::borrow::Borrow;
+use std::convert::TryFrom;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PackageId {
@@ -6,8 +8,10 @@ pub struct PackageId {
 }
 
 impl PackageId {
-    pub fn new(id: impl Into<Box<str>>) -> Self {
-        Self { repr: id.into() }
+    pub fn new(id: Box<str>) -> Result<Self, Error> {
+        util::validate(&id, ErrorKind::Package)?;
+
+        Ok(Self { repr: id })
     }
 
     pub fn as_str(&self) -> &str {
@@ -15,41 +19,43 @@ impl PackageId {
     }
 }
 
-impl From<Box<str>> for PackageId {
-    fn from(id: Box<str>) -> Self {
-        Self { repr: id }
+impl TryFrom<Box<str>> for PackageId {
+    type Error = Error;
+
+    fn try_from(id: Box<str>) -> Result<Self, Self::Error> {
+        Self::new(id)
     }
 }
 
-impl From<&str> for PackageId {
-    fn from(id: &str) -> Self {
-        Self {
-            repr: id.to_owned().into_boxed_str(),
-        }
+impl TryFrom<&str> for PackageId {
+    type Error = Error;
+
+    fn try_from(id: &str) -> Result<Self, Self::Error> {
+        Self::new(id.to_owned().into_boxed_str())
     }
 }
 
-impl From<&&str> for PackageId {
-    fn from(id: &&str) -> Self {
-        Self {
-            repr: (*id).to_owned().into_boxed_str(),
-        }
+impl TryFrom<&&str> for PackageId {
+    type Error = Error;
+
+    fn try_from(id: &&str) -> Result<Self, Self::Error> {
+        Self::new((*id).to_owned().into_boxed_str())
     }
 }
 
-impl From<String> for PackageId {
-    fn from(id: String) -> Self {
-        Self {
-            repr: id.into_boxed_str(),
-        }
+impl TryFrom<String> for PackageId {
+    type Error = Error;
+
+    fn try_from(id: String) -> Result<Self, Self::Error> {
+        Self::new(id.into_boxed_str())
     }
 }
 
-impl From<&String> for PackageId {
-    fn from(id: &String) -> Self {
-        Self {
-            repr: id.clone().into_boxed_str(),
-        }
+impl TryFrom<&String> for PackageId {
+    type Error = Error;
+
+    fn try_from(id: &String) -> Result<Self, Self::Error> {
+        Self::new(id.clone().into_boxed_str())
     }
 }
 
