@@ -87,7 +87,17 @@ async fn async_main() {
         }
     };
 
-    println!("{:?}", manifest);
+    println!("dependencies");
+
+    for dependency in manifest.dependencies {
+        println!("  {}", dependency);
+    }
+
+    println!("sources");
+
+    for source in manifest.sources {
+        println!("  {}", source);
+    }
 }
 
 fn main() {
