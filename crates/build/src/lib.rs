@@ -86,7 +86,8 @@ pub async fn build(config: Config) -> Result<()> {
         }
     }
 
-    if current_dir.join("Cargo.toml").exists_async().await {
+    // FIXME: some projects contain multiple systems but use one.
+    if current_dir.join("Cargo.toml").exists_async().await && false {
         let mut command = Command::new("cargo");
 
         command
@@ -150,7 +151,7 @@ pub async fn build(config: Config) -> Result<()> {
         }
 
         let configure_file = current_dir.join("configure");
-        let mut command = Command::new(&configure_file);
+        let mut command = std::process::Command::new(&configure_file);
 
         command
             .current_dir(&build_dir)
@@ -222,6 +223,12 @@ pub async fn build(config: Config) -> Result<()> {
             Value::String(string) => format!("--with-{k}={string}"),
         }));
 
+        let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
+        let args: String = args.join(" ");
+
+        shell::command_out(&styles, "configure", args);
+
+        let mut command = Command::from(command);
         let mut child = command.spawn()?;
         let stdio = command_extra::Stdio::from_child(&mut child)
             .ok_or("Failed to extract stdio from child.")?;
