@@ -32,7 +32,7 @@ pub struct Options {
 
     /// Target triple.
     #[clap(default_value = Triple::host().as_str(), long)]
-    pub triple: Triple,
+    pub target: Triple,
 
     /// Package to install.
     pub atom: Atom,
@@ -62,7 +62,7 @@ impl Options {
     pub fn into_config(self) -> Config {
         Config {
             prefix: self.prefix,
-            triple: self.triple,
+            target: self.target,
             atom: self.atom,
             jobs: self.jobs,
             define: self.define,

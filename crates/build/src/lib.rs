@@ -1,16 +1,19 @@
 #![feature(generators)]
 #![feature(command_access)]
 #![feature(format_args_capture)]
+#![feature(iter_zip)]
 
+use crate::compiler::{Compiler, Linker};
 use crate::shell::Styles;
 use command_extra::Line;
+use futures_util::future;
 use futures_util::stream::StreamExt;
 use milk_atom::Atom;
 use milk_triple::Triple;
 use path::{Path, PathBuf};
-use std::env;
 use std::ffi::{OsStr, OsString};
 use std::process::Stdio;
+use std::{env, iter};
 use tokio::process::Command;
 use tokio::runtime::Builder;
 
@@ -18,6 +21,8 @@ pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 mod autotools;
+mod compiler;
+mod configs;
 
 #[derive(Debug)]
 pub enum Value {
@@ -28,7 +33,7 @@ pub enum Value {
 #[derive(Debug)]
 pub struct Config {
     pub prefix: PathBuf,
-    pub triple: Triple,
+    pub target: Triple,
     pub atom: Atom,
     pub jobs: usize,
     pub define: Vec<(String, Value)>,
@@ -43,31 +48,72 @@ pub async fn build(config: Config) -> Result<()> {
 
     let destination = config
         .prefix
-        .join(config.triple.as_str())
+        .join(config.target.as_str())
         .join(repository_id.as_str())
         .join(package_id.as_str())
         .join(version.to_string());
 
     let current_dir: PathBuf = env::current_dir()?.into();
     let build_dir = if config.build_dir {
-        let build_dir = current_dir.join("build");
+        let build_dir = PathBuf::from("/milk/build");
 
         // TODO: Proper error handling,
-        let _ = build_dir.create_dir_async();
+        let _ = build_dir.create_dir_async().await;
 
         build_dir
     } else {
         current_dir.clone()
     };
 
+    // NOTE: autotools appears to be retarded
+    // compiler.file("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/crti.o")
+
+    let mut compiler = Compiler::new();
+    let mut linker = Linker::new();
+
+    compiler
+        .opt_level("fast")
+        .target_cpu("native")
+        .no_default_libs()
+        .no_start_files()
+        .pic()
+        .library_dir("/milk/x86_64-linux-gnu/core/gcc/11.2.0/lib/gcc/x86_64-pc-linux-gnu/11.2.0")
+        .library_dir("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib")
+        .file("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/crt1.o")
+        .file("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/crtn.o")
+        .link("gcc")
+        .link("c")
+        .runtime_path("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib")
+        .dynamic_linker("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/ld-linux-x86-64.so.2");
+
+    linker
+        .runtime_path("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib")
+        .dynamic_linker("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/ld-linux-x86-64.so.2");
+
+    let cflags = compiler
+        .as_slice()
+        .iter()
+        .map(|s| s.to_string_lossy())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let ldflags = linker
+        .as_slice()
+        .iter()
+        .map(|s| s.to_string_lossy())
+        .collect::<Vec<_>>()
+        .join(" ");
+
     let styles = Styles::default();
 
     shell::header(&styles, "prefix", &config.prefix);
-    shell::header(&styles, "triple", &config.triple);
+    shell::header(&styles, "target", &config.target);
     shell::header(&styles, "repository_id", &repository_id);
     shell::header(&styles, "package_id", &package_id);
     shell::header(&styles, "version", &version);
     shell::header(&styles, "destination", &destination);
+    shell::header(&styles, "cflags", &cflags);
+    shell::header(&styles, "ldflags", &ldflags);
 
     enum CargoAction {
         Update,
@@ -86,14 +132,69 @@ pub async fn build(config: Config) -> Result<()> {
         }
     }
 
-    // FIXME: some projects contain multiple systems but use one.
-    if current_dir.join("Cargo.toml").exists_async().await && false {
+    let configs = configs::detect(&package_id, &current_dir).await;
+
+    for (name, config) in configs.iter() {
+        println!("DEBUG {} -> {}", name, config);
+    }
+
+    if let Some(makefile) = configs
+        .get("makefile")
+        .or_else(|| configs.get("Makefile"))
+        .or_else(|| configs.get("gnumakefile"))
+        .or_else(|| configs.get("GNUmakefile"))
+        .or_else(|| configs.get("GNUMakefile"))
+    {
+        let mut command = Command::new("make");
+
+        command
+            .arg(format!("--jobs={}", config.jobs))
+            .env("PREFIX", &destination)
+            .env("CC", "clang")
+            .env("CFLAGS", &cflags)
+            .env("CXX", "clang++")
+            .env("CXXFLAGS", &cflags)
+            .env("HOME", &current_dir)
+            .env("LANG", "en_US.UTF-8")
+            .env("LD", "ld.lld")
+            .env("LDFLAGS", &ldflags)
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped());
+
+        let mut child = command.spawn()?;
+        let stdio = command_extra::Stdio::from_child(&mut child)
+            .ok_or("Failed to extract stdio from child.")?;
+        let mut lines = stdio.lines();
+
+        tokio::spawn(async move {
+            // TODO: Proper error handling!
+            let _ = child.wait().await;
+        });
+
+        while let Some(next) = lines.next().await {
+            while let Some(line) = lines.next().await {
+                match line? {
+                    Line::Err(line) => shell::command_err(&styles, "build", line),
+                    Line::Out(line) => shell::command_out(&styles, "build", line),
+                }
+            }
+        }
+    } else if let Some(_) = configs.get("Cargo.toml") {
         let mut command = Command::new("cargo");
 
         command
             .arg("build")
             .arg(format!("--jobs={}", config.jobs))
             .arg("--release")
+            .env("CC", "clang")
+            .env("CFLAGS", &cflags)
+            .env("CXX", "clang++")
+            .env("CXXFLAGS", &cflags)
+            .env("HOME", &current_dir)
+            .env("LANG", "en_US.UTF-8")
+            .env("LD", "ld.lld")
+            .env("LDFLAGS", &ldflags)
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
@@ -119,15 +220,15 @@ pub async fn build(config: Config) -> Result<()> {
 
             command
                 .current_dir(&build_dir)
-                .env_remove("CC")
-                .env_remove("CFLAGS")
-                .env_remove("CXX")
-                .env_remove("CXXFLAGS")
-                .env_remove("LIBS")
                 .arg(format!("--prefix={}", &destination))
-                .env("CC", "gcc")
-                .env("CXX", "g++")
-                .env("PREFIX", &destination)
+                .env("CC", "clang")
+                .env("CFLAGS", &cflags)
+                .env("CXX", "clang++")
+                .env("CXXFLAGS", &cflags)
+                .env("HOME", &current_dir)
+                .env("LANG", "en_US.UTF-8")
+                .env("LD", "ld.lld")
+                .env("LDFLAGS", &ldflags)
                 .stderr(Stdio::piped())
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped());
@@ -155,60 +256,22 @@ pub async fn build(config: Config) -> Result<()> {
 
         command
             .current_dir(&build_dir)
-            .env_remove("CC")
-            .env_remove("CFLAGS")
-            .env_remove("CXX")
-            .env_remove("CXXFLAGS")
-            .env_remove("LIBS")
             .arg(format!("--prefix={}", &destination))
-            .env("CC", "gcc")
-            .env("CXX", "g++")
-            .env("PREFIX", &destination)
+            .env("CC", "clang")
+            .env("CFLAGS", &cflags)
+            .env("CXX", "clang++")
+            .env("CXXFLAGS", &cflags)
+            .env("HOME", &current_dir)
+            .env("LANG", "en_US.UTF-8")
+            .env("LD", "ld.lld")
+            .env("LDFLAGS", &ldflags)
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
-        /*let libc = Path::new("/milk/x86_64-linux-gnu/core/glibc/2.34.0");
-        let libc_lib = libc.join("lib");
-        let libc_include = libc.join("include");
-        let dynamic_linker = libc_lib.join("ld-linux-x86-64.so.2");
-        let crt1 = libc_lib.join("crt1.o");
-        let crti = libc_lib.join("crti.o");
-        let crtn = libc_lib.join("crtn.o");
-
-        fn make_arg(flag: impl AsRef<OsStr>, value: impl AsRef<OsStr>) -> OsString {
-            let mut arg: OsString = flag.as_ref().into();
-
-            arg.push(value);
-            arg
-        }
-
-        let mut cflags: Vec<OsString> = vec![];
-
-        cflags.push("-fPIC".into());
-        cflags.push("-nostdlib".into());
-        cflags.push("-nostartfiles".into());
-        //cflags.push("-static".into());
-        cflags.push(make_arg("-I", &libc_include));
-        cflags.push(make_arg("-L", &libc_lib));
-        cflags.push(make_arg("-Wl,-dynamic-linker=", &dynamic_linker));
-        cflags.push(make_arg("-Wl,-rpath=", &libc_lib));
-        cflags.push(crt1.into());
-        cflags.push(crti.into());
-        cflags.push("/usr/lib/gcc/x86_64-pc-linux-gnu/10.2.0/crtbegin.o".into());
-        cflags.push("-lc".into());
-        cflags.push("-lgcc".into());
-        cflags.push("/usr/lib/gcc/x86_64-pc-linux-gnu/10.2.0/crtend.o".into());
-        cflags.push(crtn.into());
-        cflags.push("-Wl,-no-pie".into());
-
-        let cflags: Vec<_> = cflags.iter().flat_map(|s| s.to_str()).collect();
-        let joined = cflags.join(" ");
-
-        command.env("CFLAGS", &joined);*/
-
-        if config.triple == Triple::i686() {
-            command.env("CFLAGS", "-m32").env("CXXFLAGS:", "-m32");
+        if config.target == Triple::i686() {
+            command.env("CFLAGS", "-m32");
+            command.env("CXXFLAGS", "-m32");
         }
 
         command.args(config.define.iter().map(|(k, v)| match v {
@@ -249,11 +312,6 @@ pub async fn build(config: Config) -> Result<()> {
         let mut make = Command::new("make");
 
         make.current_dir(&build_dir);
-        make.env_remove("CC");
-        make.env_remove("CFLAGS");
-        make.env_remove("CXX");
-        make.env_remove("CXXFLAGS");
-        make.env_remove("LIBS");
 
         make.arg(format!("-j{}", config.jobs))
             .stderr(Stdio::piped())
@@ -282,11 +340,6 @@ pub async fn build(config: Config) -> Result<()> {
         let mut make = Command::new("make");
 
         make.current_dir(&build_dir);
-        make.env_remove("CC");
-        make.env_remove("CFLAGS");
-        make.env_remove("CXX");
-        make.env_remove("CXXFLAGS");
-        make.env_remove("LIBS");
 
         make.arg("install")
             .arg(format!("-j{}", config.jobs))
