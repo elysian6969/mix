@@ -145,6 +145,20 @@ impl Triple {
             const { Triple::x86_64().musl() } => "x86_64-unknown-linux-musl",
         }
     }
+
+    pub const fn arch_str(&self) -> &'static str {
+        match self {
+            const { Triple::armv7l() } => "armv7l",
+            const { Triple::aarch64() } => "aarch64",
+            const { Triple::i686() } => "i686",
+            const { Triple::x86_64() } => "x86_64",
+
+            const { Triple::armv7l().musl() } => "armv7l",
+            const { Triple::aarch64().musl() } => "aarch64",
+            const { Triple::i686().musl() } => "i686",
+            const { Triple::x86_64().musl() } => "x86_64",
+        }
+    }
 }
 
 impl fmt::Display for Triple {

@@ -2,6 +2,7 @@
 #![feature(command_access)]
 #![feature(format_args_capture)]
 #![feature(iter_zip)]
+#![feature(inline_const)]
 
 use crate::compiler::{Compiler, Linker};
 use crate::shell::Styles;
@@ -42,9 +43,10 @@ pub struct Config {
 }
 
 pub async fn build(config: Config) -> Result<()> {
-    let repository_id = config.atom.repository_id.unwrap_or("core".try_into()?);
-    let package_id = config.atom.package_id;
-    let version = config.atom.version;
+    let core = "core".try_into()?;
+    let repository_id = (&config.atom.repository_id).as_ref().unwrap_or(&core);
+    let package_id = &config.atom.package_id;
+    let version = &config.atom.version;
 
     let destination = config
         .prefix
@@ -52,6 +54,24 @@ pub async fn build(config: Config) -> Result<()> {
         .join(repository_id.as_str())
         .join(package_id.as_str())
         .join(version.to_string());
+
+    let libc_root = config
+        .prefix
+        .join(config.target.as_str())
+        .join(repository_id.as_str())
+        .join("glibc")
+        .join("2.34.0");
+
+    let libc_lib = libc_root.join("lib");
+
+    let dynamic_linker = format!("ld-linux-{}.so.2", config.target.arch_str());
+
+    let compiler_root = config
+        .prefix
+        .join(config.target.as_str())
+        .join(repository_id.as_str())
+        .join("gcc")
+        .join("11.2.0");
 
     let current_dir: PathBuf = env::current_dir()?.into();
     let build_dir = if config.build_dir {
@@ -71,24 +91,32 @@ pub async fn build(config: Config) -> Result<()> {
     let mut compiler = Compiler::new();
     let mut linker = Linker::new();
 
+    compiler.opt_level("fast");
+
+    if matches!(
+        config.target,
+        const { Triple::i686() } | const { Triple::x86_64() }
+    ) {
+        compiler.target_cpu("native");
+    }
+
     compiler
-        .opt_level("fast")
-        .target_cpu("native")
         .no_default_libs()
         .no_start_files()
         .pic()
+        .linker("lld")
         .library_dir("/milk/x86_64-linux-gnu/core/gcc/11.2.0/lib/gcc/x86_64-pc-linux-gnu/11.2.0")
-        .library_dir("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib")
-        .file("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/crt1.o")
-        .file("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/crtn.o")
+        .library_dir(&libc_lib)
+        .file(libc_lib.join("crt1.o"))
+        .file(libc_lib.join("crtn.o"))
         .link("gcc")
         .link("c")
-        .runtime_path("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib")
-        .dynamic_linker("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/ld-linux-x86-64.so.2");
+        .runtime_path(&libc_lib)
+        .dynamic_linker(libc_lib.join(&dynamic_linker));
 
     linker
-        .runtime_path("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib")
-        .dynamic_linker("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/ld-linux-x86-64.so.2");
+        .runtime_path(&libc_lib)
+        .dynamic_linker(libc_lib.join(dynamic_linker));
 
     let cflags = compiler
         .as_slice()
@@ -138,6 +166,183 @@ pub async fn build(config: Config) -> Result<()> {
         println!("DEBUG {} -> {}", name, config);
     }
 
+    if let Some(autogen_file) = configs.get("autogen").or_else(|| configs.get("autogen.sh")) {
+        let mut command = std::process::Command::new(&autogen_file);
+
+        command
+            .current_dir(&build_dir)
+            .arg(format!("--prefix={}", &destination))
+            .env("CC", "clang")
+            .env("CFLAGS", &cflags)
+            .env("CXX", "clang++")
+            .env("CXXFLAGS", &cflags)
+            .env("HOME", &current_dir)
+            .env("LANG", "en_US.UTF-8")
+            .env("LD", "ld.lld")
+            .env("LDFLAGS", &ldflags)
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped());
+
+        let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
+        let args: String = args.join(" ");
+
+        shell::command_out(&styles, &autogen_file, args);
+
+        let mut command = Command::from(command);
+        let mut child = command.spawn()?;
+        let stdio = command_extra::Stdio::from_child(&mut child)
+            .ok_or("Failed to extract stdio from child.")?;
+        let mut lines = stdio.lines();
+
+        tokio::spawn(async move {
+            // TODO: Proper error handling!
+            let _ = child.wait().await;
+        });
+
+        while let Some(line) = lines.next().await {
+            match line? {
+                Line::Err(line) => shell::command_err(&styles, "autogen", line),
+                Line::Out(line) => shell::command_out(&styles, "autogen", line),
+            }
+        }
+    }
+
+    if let Some(configure_file) = configs
+        .get("configure")
+        .or_else(|| configs.get("configure.sh"))
+    {
+        //let mut command = std::process::Command::new(&configure_file);
+        let mut command = std::process::Command::new("sh");
+
+        command
+            .current_dir(&build_dir)
+            //.arg(format!("--prefix={}", &destination))
+            .env_clear()
+            .env("CC", "clang")
+            .env("CFLAGS", &cflags)
+            .env("CXX", "clang++")
+            .env("CXXFLAGS", &cflags)
+            .env("HOME", &current_dir)
+            .env(
+                "PS1",
+                format!("[{}] ", styles.command_style.paint(&config.atom)),
+            )
+            .env("LANG", "en_US.UTF-8")
+            .env("LD", "ld.lld")
+            .env("LDFLAGS", &ldflags);
+        /*.stderr(Stdio::piped())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped());*/
+
+        if config.target == Triple::i686() {
+            command.env("CFLAGS", "-m32");
+            command.env("CXXFLAGS", "-m32");
+        }
+
+        /*command.args(config.define.iter().map(|(k, v)| match v {
+            Value::Bool(true) => format!("--enable-{k}"),
+            Value::Bool(false) => format!("--disable-{k}"),
+            Value::String(string) => format!("--enable-{k}={string}"),
+        }));
+
+        command.args(config.include.iter().map(|(k, v)| match v {
+            Value::Bool(true) => format!("--with-{k}"),
+            Value::Bool(false) => format!("--without-{k}"),
+            Value::String(string) => format!("--with-{k}={string}"),
+        }));
+
+        let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
+        let args: String = args.join(" ");
+
+        shell::command_out(&styles, &configure_file, args);*/
+
+        let mut command = Command::from(command);
+        let mut child = command.spawn()?;
+        /*let stdio = command_extra::Stdio::from_child(&mut child)
+            .ok_or("Failed to extract stdio from child.")?;
+        let mut lines = stdio.lines();*/
+
+        //tokio::spawn(async move {
+        // TODO: Proper error handling!
+        let _ = child.wait().await;
+        //});
+
+        /*while let Some(line) = lines.next().await {
+            match line? {
+                Line::Err(line) => shell::command_err(&styles, "configure", line),
+                Line::Out(line) => shell::command_out(&styles, "configure", line),
+            }
+        }
+
+        let mut make = std::process::Command::new("make");
+
+        make.current_dir(&build_dir);
+
+        make.arg(format!("-j{}", config.jobs))
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped());
+
+        let args: Vec<_> = make.get_args().flat_map(|arg| arg.to_str()).collect();
+        let args: String = args.join(" ");
+
+        shell::command_out(&styles, "make", args);
+
+        let mut make = Command::from(make);
+        let mut child = make.spawn()?;
+        let stdio = command_extra::Stdio::from_child(&mut child)
+            .ok_or("Failed to extract stdio from child.")?;
+        let mut lines = stdio.lines();
+
+        tokio::spawn(async move {
+            // TODO: Proper error handling!
+            let _ = child.wait().await;
+        });
+
+        while let Some(line) = lines.next().await {
+            match line? {
+                Line::Err(line) => shell::command_err(&styles, "build", line),
+                Line::Out(line) => shell::command_out(&styles, "build", line),
+            }
+        }
+
+        let mut make = std::process::Command::new("make");
+
+        make.current_dir(&build_dir);
+
+        make.arg("install")
+            .arg(format!("-j{}", config.jobs))
+            .stderr(Stdio::piped())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped());
+
+        let args: Vec<_> = make.get_args().flat_map(|arg| arg.to_str()).collect();
+        let args: String = args.join(" ");
+
+        shell::command_out(&styles, "make", args);
+
+        let mut make = Command::from(make);
+        let mut child = make.spawn()?;
+        let stdio = command_extra::Stdio::from_child(&mut child)
+            .ok_or("Failed to extract stdio from child.")?;
+        let mut lines = stdio.lines();
+
+        tokio::spawn(async move {
+            // TODO: Proper error handling!
+            let _ = child.wait().await;
+        });
+
+        while let Some(line) = lines.next().await {
+            match line? {
+                Line::Err(line) => shell::command_err(&styles, "install", line),
+                Line::Out(line) => shell::command_out(&styles, "install", line),
+            }
+        }*/
+
+        return Ok(());
+    }
+
     if let Some(makefile) = configs
         .get("makefile")
         .or_else(|| configs.get("Makefile"))
@@ -145,7 +350,7 @@ pub async fn build(config: Config) -> Result<()> {
         .or_else(|| configs.get("GNUmakefile"))
         .or_else(|| configs.get("GNUMakefile"))
     {
-        let mut command = Command::new("make");
+        let mut command = std::process::Command::new("make");
 
         command
             .arg(format!("--jobs={}", config.jobs))
@@ -162,6 +367,12 @@ pub async fn build(config: Config) -> Result<()> {
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
+        let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
+        let args: String = args.join(" ");
+
+        shell::command_out(&styles, "make", args);
+
+        let mut command = Command::from(command);
         let mut child = command.spawn()?;
         let stdio = command_extra::Stdio::from_child(&mut child)
             .ok_or("Failed to extract stdio from child.")?;
@@ -180,8 +391,10 @@ pub async fn build(config: Config) -> Result<()> {
                 }
             }
         }
-    } else if let Some(_) = configs.get("Cargo.toml") {
-        let mut command = Command::new("cargo");
+    }
+
+    if let Some(_) = configs.get("Cargo.toml") {
+        let mut command = std::process::Command::new("cargo");
 
         command
             .arg("build")
@@ -199,97 +412,10 @@ pub async fn build(config: Config) -> Result<()> {
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
-        let mut child = command.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
-        let mut lines = stdio.lines();
-
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
-
-        while let Some(next) = lines.next().await {
-            println!("{:?}", next);
-        }
-    } else {
-        let autogen_file = current_dir.join("autogen.sh");
-
-        if autogen_file.exists_async().await {
-            let mut command = Command::new(&autogen_file);
-
-            command
-                .current_dir(&build_dir)
-                .arg(format!("--prefix={}", &destination))
-                .env("CC", "clang")
-                .env("CFLAGS", &cflags)
-                .env("CXX", "clang++")
-                .env("CXXFLAGS", &cflags)
-                .env("HOME", &current_dir)
-                .env("LANG", "en_US.UTF-8")
-                .env("LD", "ld.lld")
-                .env("LDFLAGS", &ldflags)
-                .stderr(Stdio::piped())
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped());
-
-            let mut child = command.spawn()?;
-            let stdio = command_extra::Stdio::from_child(&mut child)
-                .ok_or("Failed to extract stdio from child.")?;
-            let mut lines = stdio.lines();
-
-            tokio::spawn(async move {
-                // TODO: Proper error handling!
-                let _ = child.wait().await;
-            });
-
-            while let Some(line) = lines.next().await {
-                match line? {
-                    Line::Err(line) => shell::command_err(&styles, "autogen", line),
-                    Line::Out(line) => shell::command_out(&styles, "autogen", line),
-                }
-            }
-        }
-
-        let configure_file = current_dir.join("configure");
-        let mut command = std::process::Command::new(&configure_file);
-
-        command
-            .current_dir(&build_dir)
-            .arg(format!("--prefix={}", &destination))
-            .env("CC", "clang")
-            .env("CFLAGS", &cflags)
-            .env("CXX", "clang++")
-            .env("CXXFLAGS", &cflags)
-            .env("HOME", &current_dir)
-            .env("LANG", "en_US.UTF-8")
-            .env("LD", "ld.lld")
-            .env("LDFLAGS", &ldflags)
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        if config.target == Triple::i686() {
-            command.env("CFLAGS", "-m32");
-            command.env("CXXFLAGS", "-m32");
-        }
-
-        command.args(config.define.iter().map(|(k, v)| match v {
-            Value::Bool(true) => format!("--enable-{k}"),
-            Value::Bool(false) => format!("--disable-{k}"),
-            Value::String(string) => format!("--enable-{k}={string}"),
-        }));
-
-        command.args(config.include.iter().map(|(k, v)| match v {
-            Value::Bool(true) => format!("--with-{k}"),
-            Value::Bool(false) => format!("--without-{k}"),
-            Value::String(string) => format!("--with-{k}={string}"),
-        }));
-
         let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
         let args: String = args.join(" ");
 
-        shell::command_out(&styles, "configure", args);
+        shell::command_out(&styles, "cargo", args);
 
         let mut command = Command::from(command);
         let mut child = command.spawn()?;
@@ -302,68 +428,8 @@ pub async fn build(config: Config) -> Result<()> {
             let _ = child.wait().await;
         });
 
-        while let Some(line) = lines.next().await {
-            match line? {
-                Line::Err(line) => shell::command_err(&styles, "configure", line),
-                Line::Out(line) => shell::command_out(&styles, "configure", line),
-            }
-        }
-
-        let mut make = Command::new("make");
-
-        make.current_dir(&build_dir);
-
-        make.arg(format!("-j{}", config.jobs))
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        println!("{make:?}");
-
-        let mut child = make.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
-        let mut lines = stdio.lines();
-
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
-
-        while let Some(line) = lines.next().await {
-            match line? {
-                Line::Err(line) => shell::command_err(&styles, "build", line),
-                Line::Out(line) => shell::command_out(&styles, "build", line),
-            }
-        }
-
-        let mut make = Command::new("make");
-
-        make.current_dir(&build_dir);
-
-        make.arg("install")
-            .arg(format!("-j{}", config.jobs))
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        println!("{make:?}");
-
-        let mut child = make.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
-        let mut lines = stdio.lines();
-
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
-
-        while let Some(line) = lines.next().await {
-            match line? {
-                Line::Err(line) => shell::command_err(&styles, "install", line),
-                Line::Out(line) => shell::command_out(&styles, "install", line),
-            }
+        while let Some(next) = lines.next().await {
+            println!("{:?}", next);
         }
     }
 
@@ -379,7 +445,7 @@ pub mod shell {
         decoration_style: Style,
         action_style: Style,
         arguments_style: Style,
-        command_style: Style,
+        pub command_style: Style,
         output_style: Style,
         output_err_style: Style,
     }

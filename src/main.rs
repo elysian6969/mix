@@ -10,6 +10,7 @@ async fn async_main() -> Result<()> {
     let options = Options::parse();
 
     match options {
+        Options::Env(env) => milk_env::env(env.into_config()).await?,
         Options::Build(build) => milk_build::build(build.into_config()).await?,
     }
 
