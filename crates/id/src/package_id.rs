@@ -1,4 +1,5 @@
 use crate::{util, Error, ErrorKind};
+use regex::Regex;
 use std::borrow::Borrow;
 use std::convert::TryFrom;
 use std::fmt;
@@ -14,6 +15,10 @@ impl PackageId {
         util::validate(&id, ErrorKind::Package)?;
 
         Ok(Self { repr: id })
+    }
+
+    pub fn matches(&self, regex: &Regex) -> bool {
+        regex.is_match(&self.repr)
     }
 
     pub fn as_str(&self) -> &str {

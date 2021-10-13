@@ -3,12 +3,16 @@ name    = "milk_manifest"
 version = "0.0.0"
 edition = "2018"
 
+[dependencies.codespan-reporting]
+version = "0.11"
+
 [dependencies.milk_atom]
 features = ["serde"]
 path = "../atom"
 
-[dependencies.codespan-reporting]
-version = "0.11"
+[dependencies.milk_source]
+features = ["serde"]
+path = "../source"
 
 [dependencies.semver]
 features = ["serde"]

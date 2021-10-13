@@ -1,21 +1,22 @@
-use atom::AtomReq;
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use codespan_reporting::term::{Chars, Config};
+use milk_atom::AtomReq;
+use milk_source::Source;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use std::io;
 use std::str::FromStr;
+use std::{error, fmt, io};
 use tokio::runtime::Builder;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Manifest {
-    #[serde(default, rename = "depends")]
-    dependencies: BTreeSet<AtomReq>,
+    #[serde(default, rename = "depend")]
+    pub dependencies: BTreeSet<AtomReq>,
     #[serde(default, rename = "source")]
-    sources: BTreeSet<String>,
+    pub sources: BTreeSet<Source>,
 }
 
 impl FromStr for Manifest {
@@ -47,7 +48,23 @@ impl From<serde_yaml::Error> for Error {
     }
 }
 
-fn error(
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use Error::*;
+
+        match &self {
+            Io(error) => fmt.write_fmt(format_args!("{}", error))?,
+            Serde(error) => fmt.write_fmt(format_args!("{}", error))?,
+        }
+
+        Ok(())
+    }
+}
+
+impl error::Error for Error {}
+
+// TODO: use milk_shell
+pub fn print_error(
     error: serde_yaml::Error,
     file_name: &str,
     manifest: &str,
@@ -57,15 +74,14 @@ fn error(
         chars: Chars::ascii(),
         ..Config::default()
     };
+
     let file = SimpleFile::new(file_name, &manifest);
     let start = error.location().unwrap().index();
     let rest = &manifest[start..];
     let end = start + rest.find('\n').unwrap_or(rest.len());
-
     let message = error.to_string();
 
-    println!("{:?}", &message);
-
+    // NOTE: this is utter shit.
     if message.contains("invalid type: map, expected atom requirement") {
         let diagnostic = Diagnostic::error()
             .with_message("failed to parse manifest")
@@ -74,9 +90,7 @@ fn error(
             ]);
 
         term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
-    }
-
-    if message.contains("unexpected character in package id") {
+    } else if message.contains("unexpected character in package id") {
         let diagnostic = Diagnostic::error()
             .with_message("failed to parse manifest")
             .with_labels(vec![
@@ -84,9 +98,7 @@ fn error(
             ]);
 
         term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
-    }
-
-    if message.contains("unexpected character in repository id") {
+    } else if message.contains("unexpected character in repository id") {
         let diagnostic = Diagnostic::error()
             .with_message("failed to parse manifest")
             .with_labels(vec![
@@ -94,6 +106,32 @@ fn error(
             ]);
 
         term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
+    } else if message.contains("invalid type: map, expected source") {
+        let diagnostic = Diagnostic::error()
+            .with_message("failed to parse manifest")
+            .with_labels(vec![
+                Label::primary((), end..end).with_message("invalid source, wrap it in \"\"")
+            ]);
+
+        term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
+    } else if message.contains("unknown scheme") {
+        let diagnostic = Diagnostic::error()
+            .with_message("failed to parse manifest")
+            .with_labels(vec![
+                Label::primary((), start..end).with_message("unknown source scheme")
+            ]);
+
+        term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
+    } else if message.contains("expected user") {
+        let diagnostic = Diagnostic::error()
+            .with_message("failed to parse manifest")
+            .with_labels(vec![
+                Label::primary((), start..end).with_message("expected user in source")
+            ]);
+
+        term::emit(&mut writer.lock(), &config, &file, &diagnostic)?;
+    } else {
+        println!("DEBUG {:?}", &message);
     }
 
     Ok(())
@@ -105,11 +143,13 @@ async fn async_main() {
     let manifest = match Manifest::from_str(&text) {
         Ok(manifest) => manifest,
         Err(Error::Serde(error)) => {
-            crate::error(error, &path, &text).unwrap();
+            crate::print_error(error, &path, &text).unwrap();
+
             return;
         }
         Err(error) => {
             println!("{:?}", error);
+
             return;
         }
     };
@@ -117,13 +157,15 @@ async fn async_main() {
     println!("dependencies");
 
     for dependency in manifest.dependencies {
-        println!("  {}", dependency);
+        println!("  {:?}", dependency);
     }
 
     println!("sources");
 
     for source in manifest.sources {
-        println!("  {}", source);
+        println!("  {:?}", source);
+        println!("    source url: {}", source.url());
+        println!("    cache directory: {}", source.cache("/milk/cache"));
     }
 }
 

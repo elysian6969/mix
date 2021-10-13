@@ -1,5 +1,5 @@
 [package]
-name    = "milk_env"
+name    = "milk_config"
 version = "0.0.0"
 edition = "2021"
 
@@ -15,11 +15,11 @@ git = "https://gitdab.com/undefined/path"
 [dependencies.milk_atom]
 path = "../atom"
 
-[dependencies.milk_config]
-path = "../config"
-
 [dependencies.milk_id]
 path = "../id"
+
+[dependencies.milk_shell]
+path = "../shell"
 
 [dependencies.milk_triple]
 path = "../triple"

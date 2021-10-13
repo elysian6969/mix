@@ -1,0 +1,14 @@
+[package]
+name    = "milk_source"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies.path]
+git = "https://gitdab.com/undefined/path"
+
+[dependencies.serde]
+optional = true
+version = "1.0"
+
+[dependencies.url]
+version = "2.2"

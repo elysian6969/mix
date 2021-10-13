@@ -3,8 +3,8 @@ name    = "milk_group"
 version = "0.0.0"
 edition = "2021"
 
-[dependencies.milk_metadata]
-path = "../metadata"
+[dependencies.milk_manifest]
+path = "../manifest"
 
 [dependencies.milk_triple]
 path = "../triple"

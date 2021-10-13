@@ -1,59 +1,40 @@
-#![feature(generators)]
-#![feature(command_access)]
-#![feature(format_args_capture)]
-#![feature(iter_zip)]
-#![feature(inline_const)]
+use async_trait::async_trait;
+use core::fmt::Arguments;
 
-use std::fmt::Display;
-use yansi::{Color, Style};
+pub use crate::shell::Shell;
+pub use crate::theme::Theme;
 
-pub struct Styles {
-    decoration: &'static str,
-    decoration_style: Style,
-    action_style: Style,
-    arguments_style: Style,
-    pub command_style: Style,
-    output_style: Style,
-    output_err_style: Style,
-}
+mod shell;
+mod theme;
 
-impl Default for Styles {
-    fn default() -> Self {
-        Self {
-            decoration: " >",
-            decoration_style: Style::new(Color::White).dimmed(),
-            action_style: Style::default(),
-            arguments_style: Style::new(Color::Magenta),
-            command_style: Style::new(Color::Green),
-            output_style: Style::default(),
-            output_err_style: Style::new(Color::Red),
-        }
+pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+pub(crate) type Result<T = (), E = Error> = std::result::Result<T, E>;
+
+#[async_trait(?Send)]
+pub trait AsyncWrite {
+    async fn write_str(&self, string: &str) -> Result;
+
+    async fn write_char(&self, character: char) -> Result {
+        self.write_str(character.encode_utf8(&mut [0; 4])).await
+    }
+
+    async fn write_fmt(&self, args: Arguments<'_>) -> Result {
+        // TODO: Don't allocate a string.
+        let mut buf = String::new();
+
+        core::fmt::write(&mut buf, args)?;
+
+        self.write_str(buf.as_str()).await?;
+
+        Ok(())
+    }
+
+    async fn flush(&self) -> Result {
+        Ok(())
     }
 }
 
-pub fn header(styles: &Styles, action: impl Display, arguments: impl Display) {
-    println!(
-        "{decoration} {action: <13} {arguments}",
-        decoration = styles.decoration_style.paint(&styles.decoration),
-        action = styles.action_style.paint(&action),
-        arguments = styles.arguments_style.paint(&arguments),
-    );
-}
-
-pub fn command_out(styles: &Styles, command: impl Display, output: impl Display) {
-    println!(
-        "{decoration} {command} {output}",
-        decoration = styles.decoration_style.paint(&styles.decoration),
-        command = styles.command_style.paint(&command),
-        output = styles.output_style.paint(&output),
-    );
-}
-
-pub fn command_err(styles: &Styles, command: impl Display, output: impl Display) {
-    println!(
-        "{decoration} {command} {output}",
-        decoration = styles.decoration_style.paint(&styles.decoration),
-        command = styles.command_style.paint(&command),
-        output = styles.output_err_style.paint(&output),
-    );
+#[macro_export]
+macro_rules! write {
+    ($dst:expr, $($arg:tt)*) => ($dst.write_fmt(core::format_args!($($arg)*)))
 }

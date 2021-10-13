@@ -22,14 +22,23 @@ path = "crates/atom"
 [dependencies.milk_build]
 path = "crates/build"
 
+[dependencies.milk_config]
+path = "crates/config"
+
 [dependencies.milk_env]
 path = "crates/env"
 
 [dependencies.milk_id]
 path = "crates/id"
 
-[dependencies.milk_metadata]
-path = "crates/metadata"
+[dependencies.milk_manifest]
+path = "crates/manifest"
+
+[dependencies.milk_packages]
+path = "crates/packages"
+
+[dependencies.milk_shell]
+path = "crates/shell"
 
 [dependencies.milk_triple]
 path = "crates/triple"
@@ -39,7 +48,7 @@ version = "1.0"
 
 [dependencies.tokio]
 features = ["io-util", "process", "macros", "rt", "sync"]
-version = "1.11"
+version = "1.12"
 
 [dependencies.yansi]
 version = "0.5" 

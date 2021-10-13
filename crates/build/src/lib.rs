@@ -42,39 +42,39 @@ pub struct Config {
     pub build_dir: bool,
 }
 
-pub async fn build(config: Config) -> Result<()> {
+pub async fn build(config: milk_config::Config, build_config: Config) -> Result<()> {
     let core = "core".try_into()?;
-    let repository_id = (&config.atom.repository_id).as_ref().unwrap_or(&core);
-    let package_id = &config.atom.package_id;
-    let version = &config.atom.version;
+    let repository_id = (&build_config.atom.repository_id).as_ref().unwrap_or(&core);
+    let package_id = &build_config.atom.package_id;
+    let version = &build_config.atom.version;
 
-    let destination = config
+    let destination = build_config
         .prefix
-        .join(config.target.as_str())
+        .join(build_config.target.as_str())
         .join(repository_id.as_str())
         .join(package_id.as_str())
         .join(version.to_string());
 
-    let libc_root = config
+    let libc_root = build_config
         .prefix
-        .join(config.target.as_str())
+        .join(build_config.target.as_str())
         .join(repository_id.as_str())
         .join("glibc")
         .join("2.34.0");
 
     let libc_lib = libc_root.join("lib");
 
-    let dynamic_linker = format!("ld-linux-{}.so.2", config.target.arch_str());
+    let dynamic_linker = format!("ld-linux-{}.so.2", build_config.target.arch_str());
 
-    let compiler_root = config
+    let compiler_root = build_config
         .prefix
-        .join(config.target.as_str())
+        .join(build_config.target.as_str())
         .join(repository_id.as_str())
         .join("gcc")
         .join("11.2.0");
 
     let current_dir: PathBuf = env::current_dir()?.into();
-    let build_dir = if config.build_dir {
+    let build_dir = if build_config.build_dir {
         let build_dir = PathBuf::from("/milk/build");
 
         // TODO: Proper error handling,
@@ -94,7 +94,7 @@ pub async fn build(config: Config) -> Result<()> {
     compiler.opt_level("fast");
 
     if matches!(
-        config.target,
+        build_config.target,
         const { Triple::i686() } | const { Triple::x86_64() }
     ) {
         compiler.target_cpu("native");
@@ -134,8 +134,8 @@ pub async fn build(config: Config) -> Result<()> {
 
     let styles = Styles::default();
 
-    shell::header(&styles, "prefix", &config.prefix);
-    shell::header(&styles, "target", &config.target);
+    shell::header(&styles, "prefix", &build_config.prefix);
+    shell::header(&styles, "target", &build_config.target);
     shell::header(&styles, "repository_id", &repository_id);
     shell::header(&styles, "package_id", &package_id);
     shell::header(&styles, "version", &version);
@@ -160,13 +160,16 @@ pub async fn build(config: Config) -> Result<()> {
         }
     }
 
-    let configs = configs::detect(&package_id, &current_dir).await;
+    let build_configs = configs::detect(&package_id, &current_dir).await;
 
-    for (name, config) in configs.iter() {
-        println!("DEBUG {} -> {}", name, config);
+    for (name, build_config) in build_configs.iter() {
+        println!("DEBUG {} -> {}", name, build_config);
     }
 
-    if let Some(autogen_file) = configs.get("autogen").or_else(|| configs.get("autogen.sh")) {
+    if let Some(autogen_file) = build_configs
+        .get("autogen")
+        .or_else(|| build_configs.get("autogen.sh"))
+    {
         let mut command = std::process::Command::new(&autogen_file);
 
         command
@@ -208,11 +211,11 @@ pub async fn build(config: Config) -> Result<()> {
         }
     }
 
-    if let Some(configure_file) = configs
-        .get("configure")
-        .or_else(|| configs.get("configure.sh"))
+    if let Some(build_configure_file) = build_configs
+        .get("build_configure")
+        .or_else(|| build_configs.get("build_configure.sh"))
     {
-        //let mut command = std::process::Command::new(&configure_file);
+        //let mut command = std::process::Command::new(&build_configure_file);
         let mut command = std::process::Command::new("sh");
 
         command
@@ -226,7 +229,7 @@ pub async fn build(config: Config) -> Result<()> {
             .env("HOME", &current_dir)
             .env(
                 "PS1",
-                format!("[{}] ", styles.command_style.paint(&config.atom)),
+                format!("[{}] ", styles.command_style.paint(&build_config.atom)),
             )
             .env("LANG", "en_US.UTF-8")
             .env("LD", "ld.lld")
@@ -235,18 +238,18 @@ pub async fn build(config: Config) -> Result<()> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped());*/
 
-        if config.target == Triple::i686() {
+        if build_config.target == Triple::i686() {
             command.env("CFLAGS", "-m32");
             command.env("CXXFLAGS", "-m32");
         }
 
-        /*command.args(config.define.iter().map(|(k, v)| match v {
+        /*command.args(build_config.define.iter().map(|(k, v)| match v {
             Value::Bool(true) => format!("--enable-{k}"),
             Value::Bool(false) => format!("--disable-{k}"),
             Value::String(string) => format!("--enable-{k}={string}"),
         }));
 
-        command.args(config.include.iter().map(|(k, v)| match v {
+        command.args(build_config.include.iter().map(|(k, v)| match v {
             Value::Bool(true) => format!("--with-{k}"),
             Value::Bool(false) => format!("--without-{k}"),
             Value::String(string) => format!("--with-{k}={string}"),
@@ -255,7 +258,7 @@ pub async fn build(config: Config) -> Result<()> {
         let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
         let args: String = args.join(" ");
 
-        shell::command_out(&styles, &configure_file, args);*/
+        shell::command_out(&styles, &build_configure_file, args);*/
 
         let mut command = Command::from(command);
         let mut child = command.spawn()?;
@@ -270,8 +273,8 @@ pub async fn build(config: Config) -> Result<()> {
 
         /*while let Some(line) = lines.next().await {
             match line? {
-                Line::Err(line) => shell::command_err(&styles, "configure", line),
-                Line::Out(line) => shell::command_out(&styles, "configure", line),
+                Line::Err(line) => shell::command_err(&styles, "build_configure", line),
+                Line::Out(line) => shell::command_out(&styles, "build_configure", line),
             }
         }
 
@@ -279,7 +282,7 @@ pub async fn build(config: Config) -> Result<()> {
 
         make.current_dir(&build_dir);
 
-        make.arg(format!("-j{}", config.jobs))
+        make.arg(format!("-j{}", build_config.jobs))
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
@@ -312,7 +315,7 @@ pub async fn build(config: Config) -> Result<()> {
         make.current_dir(&build_dir);
 
         make.arg("install")
-            .arg(format!("-j{}", config.jobs))
+            .arg(format!("-j{}", build_config.jobs))
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
@@ -343,17 +346,17 @@ pub async fn build(config: Config) -> Result<()> {
         return Ok(());
     }
 
-    if let Some(makefile) = configs
+    if let Some(makefile) = build_configs
         .get("makefile")
-        .or_else(|| configs.get("Makefile"))
-        .or_else(|| configs.get("gnumakefile"))
-        .or_else(|| configs.get("GNUmakefile"))
-        .or_else(|| configs.get("GNUMakefile"))
+        .or_else(|| build_configs.get("Makefile"))
+        .or_else(|| build_configs.get("gnumakefile"))
+        .or_else(|| build_configs.get("GNUmakefile"))
+        .or_else(|| build_configs.get("GNUMakefile"))
     {
         let mut command = std::process::Command::new("make");
 
         command
-            .arg(format!("--jobs={}", config.jobs))
+            .arg(format!("--jobs={}", build_config.jobs))
             .env("PREFIX", &destination)
             .env("CC", "clang")
             .env("CFLAGS", &cflags)
@@ -393,12 +396,12 @@ pub async fn build(config: Config) -> Result<()> {
         }
     }
 
-    if let Some(_) = configs.get("Cargo.toml") {
+    if let Some(_) = build_configs.get("Cargo.toml") {
         let mut command = std::process::Command::new("cargo");
 
         command
             .arg("build")
-            .arg(format!("--jobs={}", config.jobs))
+            .arg(format!("--jobs={}", build_config.jobs))
             .arg("--release")
             .env("CC", "clang")
             .env("CFLAGS", &cflags)

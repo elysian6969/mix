@@ -1,6 +1,7 @@
-use crate::error::Error;
+pub use crate::error::Error;
 use milk_id::{PackageId, RepositoryId};
 use semver::{Version, VersionReq};
+use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::convert::TryInto;
 use std::str::FromStr;
@@ -170,5 +171,11 @@ impl cmp::Ord for AtomReq {
 impl cmp::PartialOrd for AtomReq {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl Borrow<PackageId> for AtomReq {
+    fn borrow(&self) -> &PackageId {
+        &self.package_id
     }
 }
