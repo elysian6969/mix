@@ -26,6 +26,10 @@ impl Sources {
         self.sources.insert(source, path);
     }
 
+    pub fn len(&self) -> usize {
+        self.sources.len()
+    }
+
     pub fn iter(&self) -> Iter<'_> {
         let iter = self.sources.keys();
 

@@ -74,6 +74,35 @@ impl PackageRef {
         })
     }
 
+    pub fn new_orphaned(
+        config: Config,
+        repository_id: RepositoryId,
+        package_id: PackageId,
+    ) -> Self {
+        let build_prefix = config
+            .build_prefix()
+            .join(repository_id.as_str())
+            .join(package_id.as_str());
+
+        let manifest_path = config
+            .repos_prefix()
+            .join(repository_id.as_str())
+            .join(package_id.as_str())
+            .join("manifest.yml");
+
+        let mut sources = Sources::new(config.cache_prefix());
+
+        Self {
+            repository_id,
+            package_id,
+            versions: BTreeMap::new(),
+            sources,
+            dependencies: BTreeSet::new(),
+            manifest_path,
+            build_prefix,
+        }
+    }
+
     pub fn repository_id(&self) -> &RepositoryId {
         &self.repository_id
     }

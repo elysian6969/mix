@@ -133,6 +133,15 @@ impl Packages {
                             list.get_mut(&(repository_id.clone(), package_id.clone()))
                         {
                             package.versions_mut().insert(version, version_dir);
+                        } else {
+                            let mut package = PackageRef::new_orphaned(
+                                config.clone(),
+                                repository_id.clone(),
+                                package_id.clone(),
+                            );
+
+                            package.versions_mut().insert(version, version_dir);
+                            list.insert((repository_id.clone(), package_id.clone()), package);
                         }
                     }
                 }
@@ -256,7 +265,7 @@ impl Packages {
             .flat_map(|(_package_id, shared)| shared.iter())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Package> {
+    pub fn iter(&self) -> set::Iter<'_> {
         self.all.iter()
     }
 
