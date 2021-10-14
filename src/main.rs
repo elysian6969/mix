@@ -53,21 +53,18 @@ async fn async_main() -> Result<()> {
             }
         }
 
-        if package.sources().len() > 0 {
-            writeln!(config.shell(), "     sources")?;
+        if package.sources().is_empty() {
+            writeln!(config.shell(), "    no sources (orphan package)")?;
+        } else {
+            writeln!(config.shell(), "    sources")?;
 
             for source in package.sources().iter() {
                 config.shell().write_str("      - ").await?;
                 source.fmt(config.shell()).await?;
-
-                writeln!(
-                    config.shell(),
-                    " ({})",
-                    config.shell().theme().arguments_paint(source.url()),
-                )?;
+                config.shell().write_str(" (").await?;
+                source.url().fmt(config.shell()).await?;
+                config.shell().write_str(")\n").await?;
             }
-        } else {
-            writeln!(config.shell(), "    no sources (orphan package)")?;
         }
     }
 
