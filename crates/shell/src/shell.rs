@@ -1,6 +1,5 @@
 use crate::{AsyncWrite, Result, Theme};
 use async_trait::async_trait;
-use core::fmt::{Arguments, Display};
 use std::sync::Arc;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter, Stderr, Stdin, Stdout};
@@ -75,6 +74,10 @@ impl Shell {
 
         Ok(())
     }
+
+    pub fn theme(&self) -> &Theme {
+        &self.theme
+    }
 }
 
 #[async_trait(?Send)]
@@ -89,5 +92,11 @@ impl AsyncWrite for Shell {
         self.stdout_flush().await?;
 
         Ok(())
+    }
+}
+
+impl Default for Shell {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -1,36 +1,36 @@
 [package]
-name    = "milk_packages"
+name    = "mix_packages"
 version = "0.0.0"
 edition = "2021"
 
 [dependencies.futures-util]
 version = "0.3"
 
-[dependencies.milk_atom]
+[dependencies.mix_atom]
 path = "../atom"
 
-[dependencies.milk_build]
+[dependencies.mix_build]
 path = "../build"
 
-[dependencies.milk_config]
+[dependencies.mix_config]
 path = "../config"
 
-[dependencies.milk_env]
+[dependencies.mix_env]
 path = "../env"
 
-[dependencies.milk_id]
+[dependencies.mix_id]
 path = "../id"
 
-[dependencies.milk_manifest]
+[dependencies.mix_manifest]
 path = "../manifest"
 
-[dependencies.milk_shell]
+[dependencies.mix_shell]
 path = "../shell"
 
-[dependencies.milk_source]
+[dependencies.mix_source]
 path = "../source"
 
-[dependencies.milk_triple]
+[dependencies.mix_triple]
 path = "../triple"
 
 [dependencies.path]

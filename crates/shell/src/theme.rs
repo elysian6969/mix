@@ -9,6 +9,8 @@ pub struct Theme {
     header_prefix_style: Style,
     error_style: Style,
     output_style: Style,
+    seperator_style: Style,
+    url_style: Style,
     warning_style: Style,
 }
 
@@ -22,6 +24,8 @@ impl Theme {
             header_prefix: " > ",
             header_prefix_style: Style::new(Color::White).dimmed(),
             output_style: Style::default(),
+            seperator_style: Style::new(Color::White).dimmed(),
+            url_style: Style::new(Color::Blue),
             warning_style: Style::new(Color::Yellow),
         }
     }
@@ -76,6 +80,22 @@ impl Theme {
 
     pub fn output_paint<T>(&self, item: T) -> Paint<T> {
         self.output_style.paint(item)
+    }
+
+    pub fn seperator_style(&self) -> &Style {
+        &self.seperator_style
+    }
+
+    pub fn seperator_paint<T>(&self, item: T) -> Paint<T> {
+        self.seperator_style.paint(item)
+    }
+
+    pub fn url_style(&self) -> &Style {
+        &self.url_style
+    }
+
+    pub fn url_paint<T>(&self, item: T) -> Paint<T> {
+        self.url_style.paint(item)
     }
 
     pub fn warning_style(&self) -> &Style {

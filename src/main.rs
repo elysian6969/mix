@@ -1,7 +1,9 @@
+#![feature(format_args_nl)]
+
 use crate::options::{Options, Subcommand};
-use milk_config::Config;
-use milk_packages::Packages;
-use milk_shell::{write, AsyncWrite};
+use mix_config::Config;
+use mix_packages::Packages;
+use mix_shell::{header, writeln, AsyncDisplay, AsyncWrite};
 use tokio::runtime::Builder;
 
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -12,59 +14,77 @@ mod options;
 async fn async_main() -> Result<()> {
     let options = Options::parse();
     let config = Config::new(&options.prefix);
-
     let packages = Packages::from_config(&config).await?;
     let mut installed = 0_usize;
 
     for package in packages.iter() {
-        write!(
+        header!(
             config.shell(),
-            "> {}/{}\n",
-            package.repository_id(),
-            package.package_id()
-        )
-        .await?;
+            "{}/{}",
+            config
+                .shell()
+                .theme()
+                .arguments_paint(package.repository_id()),
+            config.shell().theme().arguments_paint(package.package_id()),
+        )?;
 
         // TODO: add a newtype
         if package.dependencies().len() > 0 {
-            write!(config.shell(), "   Dependencies\n").await?;
+            writeln!(config.shell(), "     dependencies")?;
 
             for dependency in package.dependencies() {
-                write!(config.shell(), "    - {}\n", dependency).await?;
+                writeln!(config.shell(), "      - {}", dependency)?;
             }
         }
 
         // TODO: add a newtype
         if package.version_pairs().len() > 0 {
-            write!(config.shell(), "   Installed versions\n").await?;
+            writeln!(config.shell(), "     installed versions")?;
 
             for (version, path) in package.version_pairs().iter() {
-                write!(config.shell(), "    - {} ({})\n", version, path).await?;
+                writeln!(
+                    config.shell(),
+                    "      - {} ({})",
+                    version,
+                    config.shell().theme().arguments_paint(path),
+                )?;
 
                 installed += 1;
             }
         }
 
         if package.sources().len() > 0 {
-            write!(config.shell(), "   Sources\n").await?;
+            writeln!(config.shell(), "     sources")?;
 
             for source in package.sources().iter() {
-                write!(config.shell(), "    - {} ({})\n", source, source.url()).await?;
+                config.shell().write_str("      - ").await?;
+                source.fmt(config.shell()).await?;
+
+                writeln!(
+                    config.shell(),
+                    " ({})",
+                    config.shell().theme().arguments_paint(source.url()),
+                )?;
             }
         } else {
-            write!(config.shell(), "  No sources (orphan package)\n").await?;
+            writeln!(config.shell(), "    no sources (orphan package)")?;
         }
     }
 
-    write!(config.shell(), "{} total installed packages.\n", installed).await?;
+    writeln!(
+        config.shell(),
+        "{} total installed packages",
+        config.shell().theme().arguments_paint(installed),
+    )?;
+
     config.shell().flush().await?;
 
     match options.subcommand {
         Subcommand::Env(env) => {
-            milk_env::env(config, env.into_config()).await?;
+            mix_env::env(config, env.into_config()).await?;
         }
         Subcommand::Build(build) => {
-            milk_build::build(config, build.into_config()).await?;
+            mix_build::build(config, build.into_config()).await?;
         }
     }
 

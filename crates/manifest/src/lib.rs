@@ -3,13 +3,12 @@ use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use codespan_reporting::term::{Chars, Config};
-use milk_atom::AtomReq;
-use milk_source::Source;
+use mix_atom::AtomReq;
+use mix_source::Source;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::str::FromStr;
 use std::{error, fmt, io};
-use tokio::runtime::Builder;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Manifest {
@@ -63,7 +62,7 @@ impl fmt::Display for Error {
 
 impl error::Error for Error {}
 
-// TODO: use milk_shell
+// TODO: use mix_shell
 pub fn print_error(
     error: serde_yaml::Error,
     file_name: &str,
@@ -137,7 +136,7 @@ pub fn print_error(
     Ok(())
 }
 
-async fn async_main() {
+/*async fn async_main() {
     let path = std::env::args().nth(1).unwrap();
     let text = std::fs::read_to_string(&path).unwrap();
     let manifest = match Manifest::from_str(&text) {
@@ -165,14 +164,6 @@ async fn async_main() {
     for source in manifest.sources {
         println!("  {:?}", source);
         println!("    source url: {}", source.url());
-        println!("    cache directory: {}", source.cache("/milk/cache"));
+        println!("    cache directory: {}", source.cache("/mix/cache"));
     }
-}
-
-fn main() {
-    Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async_main())
-}
+}*/

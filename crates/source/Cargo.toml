@@ -1,7 +1,10 @@
 [package]
-name    = "milk_source"
+name    = "mix_source"
 version = "0.0.0"
 edition = "2021"
+
+[dependencies.mix_shell]
+path = "../shell"
 
 [dependencies.path]
 git = "https://gitdab.com/undefined/path"

@@ -1,16 +1,16 @@
 [package]
-name    = "milk_manifest"
+name    = "mix_manifest"
 version = "0.0.0"
 edition = "2018"
 
 [dependencies.codespan-reporting]
 version = "0.11"
 
-[dependencies.milk_atom]
+[dependencies.mix_atom]
 features = ["serde"]
 path = "../atom"
 
-[dependencies.milk_source]
+[dependencies.mix_source]
 features = ["serde"]
 path = "../source"
 

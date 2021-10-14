@@ -1,16 +1,14 @@
 use crate::Result;
-use futures_util::stream::{BoxStream, StreamExt, TryStreamExt};
-use milk_atom::AtomReq;
-use milk_config::Config;
-use milk_id::{PackageId, RepositoryId};
-use milk_manifest::Manifest;
-use milk_source::{Source, Sources};
+use mix_atom::AtomReq;
+use mix_config::Config;
+use mix_id::{PackageId, RepositoryId};
+use mix_manifest::Manifest;
+use mix_source::Sources;
 use path::{Path, PathBuf};
 use semver::Version;
 use std::borrow::Borrow;
 use std::cmp::Ord;
 use std::collections::{BTreeMap, BTreeSet};
-use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -90,7 +88,7 @@ impl PackageRef {
             .join(package_id.as_str())
             .join("manifest.yml");
 
-        let mut sources = Sources::new(config.cache_prefix());
+        let sources = Sources::new(config.cache_prefix());
 
         Self {
             repository_id,

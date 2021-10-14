@@ -107,8 +107,8 @@ pub async fn configure(
 
     while let Some(line) = lines.next().await {
         match line? {
-            Line::Err(line) => crate::shell::command_err(&styles, "configure", line),
-            Line::Out(line) => crate::shell::command_out(&styles, "configure", line),
+            Line::Err(line) => crate::shell::command_err(styles, "configure", line),
+            Line::Out(line) => crate::shell::command_out(styles, "configure", line),
         }
     }
 

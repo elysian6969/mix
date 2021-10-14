@@ -1,5 +1,5 @@
 pub use crate::error::Error;
-use milk_id::{PackageId, RepositoryId};
+use mix_id::{PackageId, RepositoryId};
 use semver::{Version, VersionReq};
 use std::borrow::Borrow;
 use std::cmp::Ordering;

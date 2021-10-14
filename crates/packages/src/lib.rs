@@ -1,11 +1,11 @@
 use futures_util::stream::{BoxStream, StreamExt, TryStreamExt};
-use milk_atom::{Atom, AtomReq};
-use milk_config::Config;
-use milk_id::{PackageId, RepositoryId};
-use milk_triple::Triple;
+use mix_atom::Atom;
+use mix_config::Config;
+use mix_id::{PackageId, RepositoryId};
+use mix_triple::Triple;
 use path::{Path, PathBuf};
 use regex::Regex;
-use semver::{Version, VersionReq};
+use semver::Version;
 use std::borrow::Borrow;
 use std::cmp::Ord;
 use std::collections::HashMap;
@@ -45,6 +45,7 @@ impl Packages {
     /// Load a tree of packages from the config provided.
     pub async fn from_config(config: &Config) -> io::Result<Self> {
         let mut list: HashMap<(RepositoryId, PackageId), PackageRef> = HashMap::new();
+        let _ = config.repos_prefix().create_dir_all_async().await;
         let mut repository_dirs = read_dirs(config.repos_prefix()).await?;
 
         while let Some(repository_dir) = repository_dirs.try_next().await? {
@@ -236,7 +237,7 @@ impl Packages {
         package_id: &PackageId,
     ) -> Option<&mut Package> {
         self.repository_mut(repository_id)
-            .and_then(|mut set| set.get_mut(package_id))
+            .and_then(|set| set.get_mut(package_id))
     }
 
     pub fn atom(&self, atom: &Atom) -> AtomIter<'_> {
@@ -275,11 +276,11 @@ impl Packages {
         Q: Ord + Hash,
     {
         if let Some(package) = self.all.get(id) {
-            if let Some(mut set) = self.repository_id.get_mut(package.repository_id()) {
+            if let Some(set) = self.repository_id.get_mut(package.repository_id()) {
                 set.remove(id);
             }
 
-            if let Some(mut set) = self.package_id.get_mut(package.package_id()) {
+            if let Some(set) = self.package_id.get_mut(package.package_id()) {
                 set.remove(id);
             }
         }

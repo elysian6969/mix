@@ -30,6 +30,10 @@ impl Sources {
         self.sources.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.sources.is_empty()
+    }
+
     pub fn iter(&self) -> Iter<'_> {
         let iter = self.sources.keys();
 

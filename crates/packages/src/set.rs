@@ -37,10 +37,8 @@ impl Set {
         Package: Borrow<Q>,
         Q: Ord,
     {
-        /// SAFETY: I don't care.
-        unsafe {
-            mem::transmute(self.set.get(package))
-        }
+        // SAFETY: I don't care.
+        unsafe { mem::transmute(self.set.get(package)) }
     }
 
     /// Return an iterator over the packages within this set.

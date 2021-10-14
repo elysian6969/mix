@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(incomplete_features)]
 #![feature(generators)]
 #![feature(command_access)]
 #![feature(format_args_capture)]
@@ -7,16 +9,13 @@
 use crate::compiler::{Compiler, Linker};
 use crate::shell::Styles;
 use command_extra::Line;
-use futures_util::future;
 use futures_util::stream::StreamExt;
-use milk_atom::Atom;
-use milk_triple::Triple;
+use mix_atom::Atom;
+use mix_triple::Triple;
 use path::{Path, PathBuf};
-use std::ffi::{OsStr, OsString};
+use std::env;
 use std::process::Stdio;
-use std::{env, iter};
 use tokio::process::Command;
-use tokio::runtime::Builder;
 
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
@@ -42,7 +41,7 @@ pub struct Config {
     pub build_dir: bool,
 }
 
-pub async fn build(config: milk_config::Config, build_config: Config) -> Result<()> {
+pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<()> {
     let core = "core".try_into()?;
     let repository_id = (&build_config.atom.repository_id).as_ref().unwrap_or(&core);
     let package_id = &build_config.atom.package_id;
@@ -66,7 +65,7 @@ pub async fn build(config: milk_config::Config, build_config: Config) -> Result<
 
     let dynamic_linker = format!("ld-linux-{}.so.2", build_config.target.arch_str());
 
-    let compiler_root = build_config
+    let _compiler_root = build_config
         .prefix
         .join(build_config.target.as_str())
         .join(repository_id.as_str())
@@ -75,7 +74,7 @@ pub async fn build(config: milk_config::Config, build_config: Config) -> Result<
 
     let current_dir: PathBuf = env::current_dir()?.into();
     let build_dir = if build_config.build_dir {
-        let build_dir = PathBuf::from("/milk/build");
+        let build_dir = PathBuf::from("/mix/build");
 
         // TODO: Proper error handling,
         let _ = build_dir.create_dir_async().await;
@@ -86,7 +85,7 @@ pub async fn build(config: milk_config::Config, build_config: Config) -> Result<
     };
 
     // NOTE: autotools appears to be retarded
-    // compiler.file("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/crti.o")
+    // compiler.file("/mix/x86_64-linux-gnu/core/glibc/2.34.0/lib/crti.o")
 
     let mut compiler = Compiler::new();
     let mut linker = Linker::new();
@@ -105,7 +104,7 @@ pub async fn build(config: milk_config::Config, build_config: Config) -> Result<
         .no_start_files()
         .pic()
         .linker("lld")
-        .library_dir("/milk/x86_64-linux-gnu/core/gcc/11.2.0/lib/gcc/x86_64-pc-linux-gnu/11.2.0")
+        .library_dir("/mix/x86_64-linux-gnu/core/gcc/11.2.0/lib/gcc/x86_64-pc-linux-gnu/11.2.0")
         .library_dir(&libc_lib)
         .file(libc_lib.join("crt1.o"))
         .file(libc_lib.join("crtn.o"))
@@ -160,7 +159,7 @@ pub async fn build(config: milk_config::Config, build_config: Config) -> Result<
         }
     }
 
-    let build_configs = configs::detect(&package_id, &current_dir).await;
+    let build_configs = configs::detect(package_id, &current_dir).await;
 
     for (name, build_config) in build_configs.iter() {
         println!("DEBUG {} -> {}", name, build_config);
@@ -211,7 +210,7 @@ pub async fn build(config: milk_config::Config, build_config: Config) -> Result<
         }
     }
 
-    if let Some(build_configure_file) = build_configs
+    if let Some(_build_configure_file) = build_configs
         .get("build_configure")
         .or_else(|| build_configs.get("build_configure.sh"))
     {
@@ -346,7 +345,7 @@ pub async fn build(config: milk_config::Config, build_config: Config) -> Result<
         return Ok(());
     }
 
-    if let Some(makefile) = build_configs
+    if let Some(_makefile) = build_configs
         .get("makefile")
         .or_else(|| build_configs.get("Makefile"))
         .or_else(|| build_configs.get("gnumakefile"))
@@ -386,17 +385,15 @@ pub async fn build(config: milk_config::Config, build_config: Config) -> Result<
             let _ = child.wait().await;
         });
 
-        while let Some(next) = lines.next().await {
-            while let Some(line) = lines.next().await {
-                match line? {
-                    Line::Err(line) => shell::command_err(&styles, "build", line),
-                    Line::Out(line) => shell::command_out(&styles, "build", line),
-                }
+        while let Some(line) = lines.next().await {
+            match line? {
+                Line::Err(line) => shell::command_err(&styles, "build", line),
+                Line::Out(line) => shell::command_out(&styles, "build", line),
             }
         }
     }
 
-    if let Some(_) = build_configs.get("Cargo.toml") {
+    if build_configs.get("Cargo.toml").is_some() {
         let mut command = std::process::Command::new("cargo");
 
         command

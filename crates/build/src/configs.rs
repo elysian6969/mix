@@ -1,7 +1,7 @@
 use futures_util::future;
-use milk_id::PackageId;
+use mix_id::PackageId;
 use path::{Path, PathBuf};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::iter;
 
 const CONFIGS: [&str; 26] = [
@@ -54,9 +54,8 @@ pub async fn detect(
 
     let futures = configs.iter().map(|(_, config)| config.exists_async());
     let results = future::join_all(futures).await;
-    let configs = iter::zip(configs, results)
-        .filter_map(|(pair, exists)| if exists { Some(pair) } else { None })
-        .collect();
 
-    configs
+    iter::zip(configs, results)
+        .filter_map(|(pair, exists)| exists.then(|| pair))
+        .collect()
 }

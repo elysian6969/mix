@@ -2,6 +2,7 @@
 
 pub use crate::error::Error;
 pub use crate::sources::{Iter, Sources};
+use mix_shell::{async_trait, write, AsyncDisplay, Shell};
 use path::{Path, PathBuf};
 use std::fmt;
 use std::str::FromStr;
@@ -12,6 +13,9 @@ mod sources;
 
 #[cfg(feature = "serde")]
 mod serde;
+
+pub(crate) type Error2 = Box<dyn std::error::Error + Send + Sync + 'static>;
+pub(crate) type Result<T, E = Error2> = std::result::Result<T, E>;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Kind {
@@ -93,7 +97,10 @@ impl Source {
 
         match self.kind {
             // SAFETY: `split` is always a valid index within `serialization`.
-            Github | Gitlab => Some(unsafe { self.serialization.get_unchecked(self.split..) }),
+            Github | Gitlab => Some(unsafe {
+                self.serialization
+                    .get_unchecked(self.split.saturating_add(1).min(self.serialization.len())..)
+            }),
             _ => None,
         }
     }
@@ -121,6 +128,68 @@ impl Source {
             Gitlab => prefix.join("gitlab").join(&self.serialization),
             Gnu => prefix.join("gnu").join(&self.serialization),
         }
+    }
+}
+
+#[async_trait(?Send)]
+impl AsyncDisplay<Shell> for Source {
+    async fn fmt(&self, fmt: &Shell) -> Result<()> {
+        use Kind::*;
+
+        match self.kind {
+            Github => {
+                // SAFETY: unwrapping user and repository is safe for this kind.
+                let (user, repository) = unsafe {
+                    let user = self.user().unwrap_unchecked();
+                    let repository = self.repository().unwrap_unchecked();
+
+                    (user, repository)
+                };
+
+                write!(
+                    fmt,
+                    "{}{}{}{}{}",
+                    fmt.theme().arguments_paint("github"),
+                    fmt.theme().seperator_paint(':'),
+                    fmt.theme().arguments_paint(user),
+                    fmt.theme().seperator_paint('/'),
+                    fmt.theme().arguments_paint(repository),
+                )?;
+            }
+            Gitlab => {
+                // SAFETY: unwrapping user and repository is safe for this kind.
+                let (user, repository) = unsafe {
+                    let user = self.user().unwrap_unchecked();
+                    let repository = self.repository().unwrap_unchecked();
+
+                    (user, repository)
+                };
+
+                write!(
+                    fmt,
+                    "{}{}{}{}{}",
+                    fmt.theme().arguments_paint("github"),
+                    fmt.theme().seperator_paint(':'),
+                    fmt.theme().arguments_paint(user),
+                    fmt.theme().seperator_paint('/'),
+                    fmt.theme().arguments_paint(repository),
+                )?;
+            }
+            Gnu => {
+                // SAFETY: unwrapping path is safe for this kind.
+                let path = unsafe { self.path().unwrap_unchecked() };
+
+                write!(
+                    fmt,
+                    "{}{}{}",
+                    fmt.theme().arguments_paint("gnu"),
+                    fmt.theme().seperator_paint(':'),
+                    path
+                )?;
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -218,7 +287,7 @@ impl FromStr for Source {
                         return Err(Error::ExpectedRepository);
                     }
 
-                    Ok(Source::github(user.into(), repository.into()))
+                    Ok(Source::github(user, repository))
                 }
                 "gitlab" => {
                     // SAFETY: `colon` is guarenteed to be a valid position within `input`.
@@ -245,7 +314,7 @@ impl FromStr for Source {
                         return Err(Error::ExpectedRepository);
                     }
 
-                    Ok(Source::gitlab(user.into(), repository.into()))
+                    Ok(Source::gitlab(user, repository))
                 }
                 _ => Err(Error::UnknownScheme),
             },

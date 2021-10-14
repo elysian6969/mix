@@ -1,5 +1,5 @@
 use clap::{AppSettings, Clap};
-use path::{Path, PathBuf};
+use path::PathBuf;
 
 mod build;
 mod env;

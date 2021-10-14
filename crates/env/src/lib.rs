@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(incomplete_features)]
 #![feature(generators)]
 #![feature(command_access)]
 #![feature(format_args_capture)]
@@ -6,17 +8,11 @@
 
 use crate::compiler::{Compiler, Linker};
 use crate::shell::Styles;
-use command_extra::Line;
-use futures_util::future;
-use futures_util::stream::StreamExt;
-use milk_atom::Atom;
-use milk_triple::Triple;
-use path::{Path, PathBuf};
-use std::ffi::{OsStr, OsString};
-use std::process::Stdio;
-use std::{env, iter};
+use mix_atom::Atom;
+use mix_triple::Triple;
+use path::PathBuf;
+use std::env;
 use tokio::process::Command;
-use tokio::runtime::Builder;
 
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
@@ -30,7 +26,7 @@ pub struct Config {
     pub atom: Atom,
 }
 
-pub async fn env(gconfig: milk_config::Config, config: Config) -> Result<()> {
+pub async fn env(_gconfig: mix_config::Config, config: Config) -> Result<()> {
     let core = "core".try_into()?;
     let repository_id = (&config.atom.repository_id).as_ref().unwrap_or(&core);
     let package_id = &config.atom.package_id;
@@ -54,7 +50,7 @@ pub async fn env(gconfig: milk_config::Config, config: Config) -> Result<()> {
 
     let dynamic_linker = format!("ld-linux-{}.so.2", config.target.arch_str());
 
-    let compiler_root = config
+    let _compiler_root = config
         .prefix
         .join(config.target.as_str())
         .join(repository_id.as_str())
@@ -64,7 +60,7 @@ pub async fn env(gconfig: milk_config::Config, config: Config) -> Result<()> {
     let current_dir: PathBuf = env::current_dir()?.into();
 
     // NOTE: autotools appears to be retarded
-    // compiler.file("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/crti.o")
+    // compiler.file("/mix/x86_64-linux-gnu/core/glibc/2.34.0/lib/crti.o")
 
     let mut compiler = Compiler::new();
     let mut linker = Linker::new();
@@ -83,7 +79,7 @@ pub async fn env(gconfig: milk_config::Config, config: Config) -> Result<()> {
         .no_start_files()
         .pic()
         .linker("lld")
-        .library_dir("/milk/x86_64-linux-gnu/core/gcc/11.2.0/lib/gcc/x86_64-pc-linux-gnu/11.2.0")
+        .library_dir("/mix/x86_64-linux-gnu/core/gcc/11.2.0/lib/gcc/x86_64-pc-linux-gnu/11.2.0")
         .library_dir(&libc_lib)
         .file(libc_lib.join("crt1.o"))
         .file(libc_lib.join("crtn.o"))

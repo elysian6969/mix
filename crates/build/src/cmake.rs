@@ -108,7 +108,7 @@ async fn async_main() -> Result<()> {
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
-        /*let libc = Path::new("/milk/x86_64-linux-gnu/core/glibc/2.34.0");
+        /*let libc = Path::new("/mix/x86_64-linux-gnu/core/glibc/2.34.0");
         let libc_lib = libc.join("lib");
         let libc_include = libc.join("include");
         let dynamic_linker = libc_lib.join("ld-linux-x86-64.so.2");

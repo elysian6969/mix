@@ -1,5 +1,5 @@
 [package]
-name    = "milk_shell"
+name    = "mix_shell"
 version = "0.0.0"
 edition = "2021"
 
@@ -15,17 +15,20 @@ git = "https://gitdab.com/undefined/command_extra"
 [dependencies.path]
 git = "https://gitdab.com/undefined/path"
 
-[dependencies.milk_atom]
+[dependencies.mix_atom]
 path = "../atom"
 
-[dependencies.milk_id]
+[dependencies.mix_id]
 path = "../id"
 
-[dependencies.milk_triple]
+[dependencies.mix_triple]
 path = "../triple"
 
 [dependencies.semver]
 version = "1.0"
+
+[dependencies.url]
+version = "2.2"
 
 [dependencies.tokio]
 features = ["io-std", "io-util", "sync"]

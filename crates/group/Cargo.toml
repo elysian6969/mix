@@ -1,12 +1,12 @@
 [package]
-name    = "milk_group"
+name    = "mix_group"
 version = "0.0.0"
 edition = "2021"
 
-[dependencies.milk_manifest]
+[dependencies.mix_manifest]
 path = "../manifest"
 
-[dependencies.milk_triple]
+[dependencies.mix_triple]
 path = "../triple"
 
 [dependencies.path]

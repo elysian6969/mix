@@ -1,4 +1,4 @@
-use path::{Path, PathBuf};
+use path::Path;
 use std::ffi::{OsStr, OsString};
 
 pub struct Compiler {

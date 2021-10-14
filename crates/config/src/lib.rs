@@ -1,4 +1,4 @@
-use milk_shell::Shell;
+use mix_shell::Shell;
 use path::{Path, PathBuf};
 use std::sync::Arc;
 

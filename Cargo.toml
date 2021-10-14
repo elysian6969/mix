@@ -16,31 +16,31 @@ git = "https://gitdab.com/undefined/command_extra"
 [dependencies.path]
 git = "https://gitdab.com/undefined/path"
 
-[dependencies.milk_atom]
+[dependencies.mix_atom]
 path = "crates/atom"
 
-[dependencies.milk_build]
+[dependencies.mix_build]
 path = "crates/build"
 
-[dependencies.milk_config]
+[dependencies.mix_config]
 path = "crates/config"
 
-[dependencies.milk_env]
+[dependencies.mix_env]
 path = "crates/env"
 
-[dependencies.milk_id]
+[dependencies.mix_id]
 path = "crates/id"
 
-[dependencies.milk_manifest]
+[dependencies.mix_manifest]
 path = "crates/manifest"
 
-[dependencies.milk_packages]
+[dependencies.mix_packages]
 path = "crates/packages"
 
-[dependencies.milk_shell]
+[dependencies.mix_shell]
 path = "crates/shell"
 
-[dependencies.milk_triple]
+[dependencies.mix_triple]
 path = "crates/triple"
 
 [dependencies.semver]
