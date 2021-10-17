@@ -4,7 +4,7 @@ use std::{error, fmt};
 pub enum Error {
     ExpectedPackageId,
     Id(mix_id::Error),
-    Semver(semver::Error),
+    Version(mix_version::Error),
 }
 
 impl From<mix_id::Error> for Error {
@@ -13,9 +13,9 @@ impl From<mix_id::Error> for Error {
     }
 }
 
-impl From<semver::Error> for Error {
-    fn from(error: semver::Error) -> Self {
-        Self::Semver(error)
+impl From<mix_version::Error> for Error {
+    fn from(error: mix_version::Error) -> Self {
+        Self::Version(error)
     }
 }
 
@@ -26,7 +26,7 @@ impl fmt::Display for Error {
         match &self {
             ExpectedPackageId => fmt.write_str("expected package id")?,
             Id(error) => fmt.write_fmt(format_args!("{}", error))?,
-            Semver(error) => fmt.write_fmt(format_args!("{}", error))?,
+            Version(error) => fmt.write_fmt(format_args!("{}", error))?,
         }
 
         Ok(())

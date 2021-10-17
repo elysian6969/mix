@@ -15,15 +15,6 @@ git = "https://gitdab.com/undefined/command_extra"
 [dependencies.path]
 git = "https://gitdab.com/undefined/path"
 
-[dependencies.mix_atom]
-path = "../atom"
-
-[dependencies.mix_id]
-path = "../id"
-
-[dependencies.mix_triple]
-path = "../triple"
-
 [dependencies.semver]
 version = "1.0"
 

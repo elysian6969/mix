@@ -3,11 +3,15 @@ use path::PathBuf;
 
 mod build;
 mod env;
+mod list;
 
 #[derive(Clap, Debug)]
 pub enum Subcommand {
     /// Inspect a package's build environment.
     Env(env::Options),
+
+    /// List packages.
+    List(list::Options),
 
     /// Build a package.
     Build(build::Options),

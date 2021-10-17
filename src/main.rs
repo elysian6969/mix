@@ -15,70 +15,73 @@ async fn async_main() -> Result<()> {
     let options = Options::parse();
     let config = Config::new(&options.prefix);
     let packages = Packages::from_config(&config).await?;
-    let mut installed = 0_usize;
-
-    for package in packages.iter() {
-        header!(
-            config.shell(),
-            "{}/{}",
-            config
-                .shell()
-                .theme()
-                .arguments_paint(package.repository_id()),
-            config.shell().theme().arguments_paint(package.package_id()),
-        )?;
-
-        // TODO: add a newtype
-        if package.dependencies().len() > 0 {
-            writeln!(config.shell(), "     dependencies")?;
-
-            for dependency in package.dependencies() {
-                writeln!(config.shell(), "      - {}", dependency)?;
-            }
-        }
-
-        // TODO: add a newtype
-        if package.version_pairs().len() > 0 {
-            writeln!(config.shell(), "     installed versions")?;
-
-            for (version, path) in package.version_pairs().iter() {
-                writeln!(
-                    config.shell(),
-                    "      - {} ({})",
-                    version,
-                    config.shell().theme().arguments_paint(path),
-                )?;
-
-                installed += 1;
-            }
-        }
-
-        if package.sources().is_empty() {
-            writeln!(config.shell(), "    no sources (orphan package)")?;
-        } else {
-            writeln!(config.shell(), "    sources")?;
-
-            for source in package.sources().iter() {
-                config.shell().write_str("      - ").await?;
-                source.fmt(config.shell()).await?;
-                config.shell().write_str(" (").await?;
-                source.url().fmt(config.shell()).await?;
-                config.shell().write_str(")\n").await?;
-            }
-        }
-    }
-
-    writeln!(
-        config.shell(),
-        "{} total installed packages",
-        config.shell().theme().arguments_paint(installed),
-    )?;
-
-    config.shell().flush().await?;
 
     match options.subcommand {
         Subcommand::Env(env) => {
             mix_env::env(config, env.into_config()).await?;
+        }
+        Subcommand::List(list) => {
+            for package in packages.iter() {
+                if list.installed && !package.installed() {
+                    continue;
+                }
+
+                header!(
+                    config.shell(),
+                    "{}/{}",
+                    config
+                        .shell()
+                        .theme()
+                        .arguments_paint(package.repository_id()),
+                    config.shell().theme().arguments_paint(package.package_id()),
+                )?;
+
+                if !package.dependencies().is_empty() {
+                    writeln!(config.shell(), "     dependencies")?;
+
+                    for dependency in package.dependencies() {
+                        writeln!(config.shell(), "      - {}", dependency)?;
+                    }
+                }
+
+                if !package.versions().is_empty() {
+                    writeln!(config.shell(), "     installed versions")?;
+
+                    for (version, path) in package.versions().pairs() {
+                        writeln!(
+                            config.shell(),
+                            "      - {} ({})",
+                            version,
+                            config.shell().theme().arguments_paint(path),
+                        )?;
+                    }
+                }
+
+                if package.sources().is_empty() {
+                    writeln!(config.shell(), "    no sources (orphan package)")?;
+                } else {
+                    writeln!(config.shell(), "    sources")?;
+
+                    for source in package.sources().iter() {
+                        config.shell().write_str("      - ").await?;
+                        source.fmt(config.shell()).await?;
+                        config.shell().write_str(" (").await?;
+                        source.url().fmt(config.shell()).await?;
+                        config.shell().write_str(")\n").await?;
+                    }
+                }
+            }
+
+            writeln!(
+                config.shell(),
+                "{} total installed packages",
+                config
+                    .shell()
+                    .theme()
+                    .arguments_paint(packages.installed().len()),
+            )?;
+
+            config.shell().flush().await?;
         }
         Subcommand::Build(build) => {
             mix_build::build(config, build.into_config()).await?;

@@ -33,6 +33,9 @@ path = "../source"
 [dependencies.mix_triple]
 path = "../triple"
 
+[dependencies.mix_version]
+path = "../version"
+
 [dependencies.path]
 git = "https://gitdab.com/undefined/path" 
 

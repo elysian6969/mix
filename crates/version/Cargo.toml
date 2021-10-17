@@ -1,13 +1,13 @@
 [package]
-name    = "mix_atom"
+name    = "mix_version"
 version = "0.0.0"
 edition = "2021"
 
-[dependencies.mix_id]
-path = "../id"
+[dependencies.mix_shell]
+path = "../shell"
 
-[dependencies.mix_version]
-path = "../version"
+[dependencies.path]
+git = "https://gitdab.com/undefined/path"
 
 [dependencies.semver]
 version = "1.0"

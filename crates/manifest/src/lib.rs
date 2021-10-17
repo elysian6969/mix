@@ -3,7 +3,7 @@ use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use codespan_reporting::term::{Chars, Config};
-use mix_atom::AtomReq;
+use mix_atom::Requirement;
 use mix_source::Source;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -13,7 +13,7 @@ use std::{error, fmt, io};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Manifest {
     #[serde(default, rename = "depend")]
-    pub dependencies: BTreeSet<AtomReq>,
+    pub dependencies: BTreeSet<Requirement>,
     #[serde(default, rename = "source")]
     pub sources: BTreeSet<Source>,
 }

@@ -1,14 +1,14 @@
 use crate::Result;
-use mix_atom::AtomReq;
+use mix_atom::Requirement;
 use mix_config::Config;
 use mix_id::{PackageId, RepositoryId};
 use mix_manifest::Manifest;
 use mix_source::Sources;
+use mix_version::Versions;
 use path::{Path, PathBuf};
-use semver::Version;
 use std::borrow::Borrow;
 use std::cmp::Ord;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -21,10 +21,10 @@ pub struct PackageRef {
     pub package_id: PackageId,
 
     /// Installed versions.
-    pub versions: BTreeMap<Version, PathBuf>,
+    pub versions: Versions,
 
     /// Packages this package depends on.
-    pub dependencies: BTreeSet<AtomReq>,
+    pub dependencies: BTreeSet<Requirement>,
 
     /// Sources which provide this package.
     pub sources: Sources,
@@ -64,7 +64,7 @@ impl PackageRef {
         Ok(Self {
             repository_id,
             package_id,
-            versions: BTreeMap::new(),
+            versions: Versions::new(),
             sources,
             dependencies: manifest.dependencies,
             manifest_path,
@@ -93,7 +93,7 @@ impl PackageRef {
         Self {
             repository_id,
             package_id,
-            versions: BTreeMap::new(),
+            versions: Versions::new(),
             sources,
             dependencies: BTreeSet::new(),
             manifest_path,
@@ -109,13 +109,13 @@ impl PackageRef {
         &self.package_id
     }
 
-    pub fn dependencies(&self) -> &BTreeSet<AtomReq> {
+    pub fn dependencies(&self) -> &BTreeSet<Requirement> {
         &self.dependencies
     }
 
-    pub fn get_dependency<Q>(&self, atom: &Q) -> Option<&AtomReq>
+    pub fn get_dependency<Q>(&self, atom: &Q) -> Option<&Requirement>
     where
-        AtomReq: Borrow<Q>,
+        Requirement: Borrow<Q>,
         Q: Ord,
     {
         self.dependencies.get(atom)
@@ -123,30 +123,10 @@ impl PackageRef {
 
     pub fn has_dependency<Q>(&self, atom: &Q) -> bool
     where
-        AtomReq: Borrow<Q>,
+        Requirement: Borrow<Q>,
         Q: Ord,
     {
         self.get_dependency(atom).is_some()
-    }
-
-    pub fn versions(&self) -> impl Iterator<Item = &Version> {
-        self.versions.keys()
-    }
-
-    pub fn versions_mut(&mut self) -> &mut BTreeMap<Version, PathBuf> {
-        &mut self.versions
-    }
-
-    pub fn version_paths(&self) -> impl Iterator<Item = &Path> {
-        self.versions.values().map(|path| path.as_path())
-    }
-
-    pub fn version_pairs(&self) -> &BTreeMap<Version, PathBuf> {
-        &self.versions
-    }
-
-    pub fn manifest_path(&self) -> &Path {
-        self.manifest_path.as_path()
     }
 
     pub fn sources(&self) -> &Sources {
@@ -157,6 +137,21 @@ impl PackageRef {
         &mut self.sources
     }
 
+    pub fn versions(&self) -> &Versions {
+        &self.versions
+    }
+
+    pub fn versions_mut(&mut self) -> &mut Versions {
+        &mut self.versions
+    }
+
+    pub fn installed(&self) -> bool {
+        !self.versions.is_empty()
+    }
+
+    pub fn manifest_path(&self) -> &Path {
+        self.manifest_path.as_path()
+    }
     pub fn build_prefix(&self) -> &Path {
         self.build_prefix.as_path()
     }
@@ -196,13 +191,13 @@ impl Package {
         self.0.package_id()
     }
 
-    pub fn dependencies(&self) -> &BTreeSet<AtomReq> {
+    pub fn dependencies(&self) -> &BTreeSet<Requirement> {
         self.0.dependencies()
     }
 
-    pub fn get_dependency<Q>(&self, atom: &Q) -> Option<&AtomReq>
+    pub fn get_dependency<Q>(&self, atom: &Q) -> Option<&Requirement>
     where
-        AtomReq: Borrow<Q>,
+        Requirement: Borrow<Q>,
         Q: Ord,
     {
         self.0.get_dependency(atom)
@@ -210,34 +205,26 @@ impl Package {
 
     pub fn has_dependency<Q>(&self, atom: &Q) -> bool
     where
-        AtomReq: Borrow<Q>,
+        Requirement: Borrow<Q>,
         Q: Ord,
     {
         self.0.has_dependency(atom)
-    }
-
-    pub fn versions(&self) -> impl Iterator<Item = &Version> {
-        self.0.versions()
-    }
-
-    pub fn version_paths(&self) -> impl Iterator<Item = &Path> {
-        self.0.version_paths()
-    }
-
-    pub fn version_pairs(&self) -> &BTreeMap<Version, PathBuf> {
-        self.0.version_pairs()
-    }
-
-    pub fn manifest_path(&self) -> &Path {
-        self.0.manifest_path()
     }
 
     pub fn sources(&self) -> &Sources {
         self.0.sources()
     }
 
+    pub fn versions(&self) -> &Versions {
+        self.0.versions()
+    }
+
     pub fn build_prefix(&self) -> &Path {
         self.0.build_prefix()
+    }
+
+    pub fn installed(&self) -> bool {
+        self.0.installed()
     }
 }
 

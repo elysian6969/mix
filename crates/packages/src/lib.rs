@@ -3,9 +3,9 @@ use mix_atom::Atom;
 use mix_config::Config;
 use mix_id::{PackageId, RepositoryId};
 use mix_triple::Triple;
+use mix_version::Version;
 use path::{Path, PathBuf};
 use regex::Regex;
-use semver::Version;
 use std::borrow::Borrow;
 use std::cmp::Ord;
 use std::collections::HashMap;
@@ -19,12 +19,16 @@ pub use crate::shared::{Package, PackageRef};
 pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-mod set;
+pub mod atoms;
+pub mod packages;
+pub mod set;
 mod shared;
 
 pub struct Packages {
     repository_id: HashMap<RepositoryId, Set>,
     package_id: HashMap<PackageId, Set>,
+    installed: Set,
+    not_installed: Set,
     all: Set,
 }
 
@@ -33,11 +37,15 @@ impl Packages {
     pub fn new() -> Self {
         let repository_id = HashMap::new();
         let package_id = HashMap::new();
+        let installed = Set::new();
+        let not_installed = Set::new();
         let all = Set::new();
 
         Self {
             repository_id,
             package_id,
+            installed,
+            not_installed,
             all,
         }
     }
@@ -182,6 +190,12 @@ impl Packages {
                 set
             });
 
+        if package.installed() {
+            self.installed.insert(package.clone());
+        } else {
+            self.not_installed.insert(package.clone());
+        }
+
         self.all.insert(package);
     }
 
@@ -213,7 +227,7 @@ impl Packages {
     }
 
     /// Returns a set of packages with this `id`, iterator variant.
-    pub fn packages_iter<'a, Q>(&'a self, id: &Q) -> PackagesIter<'a>
+    pub fn packages_iter<'a, Q>(&'a self, id: &Q) -> packages::Packages<'a>
     where
         PackageId: Borrow<Q>,
         Q: Ord + Hash,
@@ -221,16 +235,18 @@ impl Packages {
         let iter = self
             .packages(id)
             .into_iter()
-            .flat_map(map_set_to_iter as MapSetToIter<'a>);
+            .flat_map(packages::map_set_to_iter as packages::MapSetToIter<'a>);
 
-        PackagesIter { iter }
+        packages::Packages { iter }
     }
 
+    /// Get a package by `repository_id` and `package_id`.
     pub fn get(&self, repository_id: &RepositoryId, package_id: &PackageId) -> Option<&Package> {
         self.repository(repository_id)
             .and_then(|set| set.get(package_id))
     }
 
+    /// Get a package by `repository_id` and `package_id`.
     pub fn get_mut(
         &mut self,
         repository_id: &RepositoryId,
@@ -240,18 +256,20 @@ impl Packages {
             .and_then(|set| set.get_mut(package_id))
     }
 
-    pub fn atom(&self, atom: &Atom) -> AtomIter<'_> {
+    /// Get matching atoms.
+    pub fn atoms(&self, atom: &Atom) -> atoms::Atoms<'_> {
         if let Some(repository_id) = &atom.repository_id {
             let iter = self.get(&repository_id, &atom.package_id).into_iter();
 
-            AtomIter::Exact(iter)
+            atoms::Atoms::Exact(iter)
         } else {
             let iter = self.packages_iter(&atom.package_id);
 
-            AtomIter::Set(iter)
+            atoms::Atoms::Set(iter)
         }
     }
 
+    /// Get matching repositories.
     pub fn matches_repository<'a>(&'a self, regex: &'a Regex) -> impl Iterator<Item = &'a Package> {
         self.repository_id
             .iter()
@@ -259,6 +277,7 @@ impl Packages {
             .flat_map(|(_repository_id, shared)| shared.iter())
     }
 
+    /// Get matching packages.
     pub fn matches_package<'a>(&'a self, regex: &'a Regex) -> impl Iterator<Item = &'a Package> {
         self.package_id
             .iter()
@@ -266,6 +285,7 @@ impl Packages {
             .flat_map(|(_package_id, shared)| shared.iter())
     }
 
+    /// An iterator over all packages.
     pub fn iter(&self) -> set::Iter<'_> {
         self.all.iter()
     }
@@ -283,47 +303,33 @@ impl Packages {
             if let Some(set) = self.package_id.get_mut(package.package_id()) {
                 set.remove(id);
             }
+
+            if package.installed() {
+                self.installed.remove(id);
+            } else {
+                self.not_installed.remove(id);
+            }
         }
 
         self.all.remove(id);
     }
-}
 
-use std::{iter, option};
-
-type MapSetToIter<'a> = fn(&'a Set) -> set::Iter<'a>;
-
-fn map_set_to_iter<'a>(set: &'a Set) -> set::Iter<'a> {
-    set.iter()
-}
-
-pub struct PackagesIter<'a> {
-    iter: iter::FlatMap<option::IntoIter<&'a Set>, set::Iter<'a>, MapSetToIter<'a>>,
-}
-
-impl<'a> Iterator for PackagesIter<'a> {
-    type Item = &'a Package;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
+    pub fn len(&self) -> usize {
+        self.all.len()
     }
-}
 
-pub enum AtomIter<'a> {
-    Exact(option::IntoIter<&'a Package>),
-    Set(PackagesIter<'a>),
-}
+    pub fn is_empty(&self) -> bool {
+        self.all.is_empty()
+    }
 
-impl<'a> Iterator for AtomIter<'a> {
-    type Item = &'a Package;
+    /// List of packages that are installed.
+    pub fn installed(&self) -> &Set {
+        &self.installed
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        use AtomIter::*;
-
-        match self {
-            Exact(iter) => iter.next(),
-            Set(iter) => iter.next(),
-        }
+    /// List of packages that are not installed.
+    pub fn not_installed(&self) -> &Set {
+        &self.installed
     }
 }
 

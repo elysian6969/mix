@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 #![allow(incomplete_features)]
 #![feature(generators)]
-#![feature(command_access)]
 #![feature(format_args_capture)]
 #![feature(iter_zip)]
 #![feature(inline_const)]
