@@ -21,15 +21,12 @@ path = "../config"
 [dependencies.mix_id]
 path = "../id"
 
+[dependencies.mix_shell]
+path = "../shell"
+
 [dependencies.mix_triple]
 path = "../triple"
-
-[dependencies.semver]
-version = "1.0"
 
 [dependencies.tokio]
 features = ["full"]
 version = "1.12"
-
-[dependencies.yansi]
-version = "0.5" 

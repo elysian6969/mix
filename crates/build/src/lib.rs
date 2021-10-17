@@ -4,12 +4,13 @@
 #![feature(format_args_capture)]
 #![feature(iter_zip)]
 #![feature(inline_const)]
+#![feature(format_args_nl)]
 
 use crate::compiler::{Compiler, Linker};
-use crate::shell::Styles;
 use command_extra::Line;
 use futures_util::stream::StreamExt;
 use mix_atom::Atom;
+use mix_shell::{header, writeln, AsyncWrite};
 use mix_triple::Triple;
 use path::{Path, PathBuf};
 use std::env;
@@ -19,7 +20,7 @@ use tokio::process::Command;
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
-mod autotools;
+//mod autotools;
 mod compiler;
 mod configs;
 
@@ -40,7 +41,7 @@ pub struct Config {
     pub build_dir: bool,
 }
 
-pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<()> {
+pub async fn build(config: mix_config::Config, build_config: Config) -> Result<()> {
     let core = "core".try_into()?;
     let repository_id = (&build_config.atom.repository_id).as_ref().unwrap_or(&core);
     let package_id = &build_config.atom.package_id;
@@ -130,16 +131,14 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
         .collect::<Vec<_>>()
         .join(" ");
 
-    let styles = Styles::default();
-
-    shell::header(&styles, "prefix", &build_config.prefix);
-    shell::header(&styles, "target", &build_config.target);
-    shell::header(&styles, "repository_id", &repository_id);
-    shell::header(&styles, "package_id", &package_id);
-    shell::header(&styles, "version", &version);
-    shell::header(&styles, "destination", &destination);
-    shell::header(&styles, "cflags", &cflags);
-    shell::header(&styles, "ldflags", &ldflags);
+    header!(config.shell(), "prefix {}", &build_config.prefix)?;
+    header!(config.shell(), "target {}", &build_config.target)?;
+    header!(config.shell(), "repository_id {}", &repository_id)?;
+    header!(config.shell(), "package_id {}", &package_id)?;
+    header!(config.shell(), "version {}", &version)?;
+    header!(config.shell(), "destination {}", &destination)?;
+    header!(config.shell(), "cflags {}", &cflags)?;
+    header!(config.shell(), "ldflags {}", &ldflags)?;
 
     enum CargoAction {
         Update,
@@ -161,7 +160,7 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
     let build_configs = configs::detect(package_id, &current_dir).await;
 
     for (name, build_config) in build_configs.iter() {
-        println!("DEBUG {} -> {}", name, build_config);
+        writeln!(config.shell(), "DEBUG {} -> {}", name, build_config)?;
     }
 
     if let Some(autogen_file) = build_configs
@@ -188,7 +187,7 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
         let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
         let args: String = args.join(" ");
 
-        shell::command_out(&styles, &autogen_file, args);
+        writeln!(config.shell(), "{}{}", &autogen_file, args)?;
 
         let mut command = Command::from(command);
         let mut child = command.spawn()?;
@@ -203,8 +202,8 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
 
         while let Some(line) = lines.next().await {
             match line? {
-                Line::Err(line) => shell::command_err(&styles, "autogen", line),
-                Line::Out(line) => shell::command_out(&styles, "autogen", line),
+                Line::Err(line) => writeln!(config.shell(), "{}{}", "autogen", line)?,
+                Line::Out(line) => writeln!(config.shell(), "{}{}", "autogen", line)?,
             }
         }
     }
@@ -227,7 +226,10 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
             .env("HOME", &current_dir)
             .env(
                 "PS1",
-                format!("[{}] ", styles.command_style.paint(&build_config.atom)),
+                format!(
+                    "[{}] ",
+                    config.shell().theme().command_paint(&build_config.atom)
+                ),
             )
             .env("LANG", "en_US.UTF-8")
             .env("LD", "ld.lld")
@@ -256,7 +258,7 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
         let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
         let args: String = args.join(" ");
 
-        shell::command_out(&styles, &build_configure_file, args);*/
+        shell::command_out(config.shell(), &build_configure_file, args);*/
 
         let mut command = Command::from(command);
         let mut child = command.spawn()?;
@@ -271,8 +273,8 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
 
         /*while let Some(line) = lines.next().await {
             match line? {
-                Line::Err(line) => shell::command_err(&styles, "build_configure", line),
-                Line::Out(line) => shell::command_out(&styles, "build_configure", line),
+                Line::Err(line) => shell::command_err(config.shell(), "build_configure", line),
+                Line::Out(line) => shell::command_out(config.shell(), "build_configure", line),
             }
         }
 
@@ -288,7 +290,7 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
         let args: Vec<_> = make.get_args().flat_map(|arg| arg.to_str()).collect();
         let args: String = args.join(" ");
 
-        shell::command_out(&styles, "make", args);
+        shell::command_out(config.shell(), "make", args);
 
         let mut make = Command::from(make);
         let mut child = make.spawn()?;
@@ -303,8 +305,8 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
 
         while let Some(line) = lines.next().await {
             match line? {
-                Line::Err(line) => shell::command_err(&styles, "build", line),
-                Line::Out(line) => shell::command_out(&styles, "build", line),
+                Line::Err(line) => shell::command_err(config.shell(), "build", line),
+                Line::Out(line) => shell::command_out(config.shell(), "build", line),
             }
         }
 
@@ -321,7 +323,7 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
         let args: Vec<_> = make.get_args().flat_map(|arg| arg.to_str()).collect();
         let args: String = args.join(" ");
 
-        shell::command_out(&styles, "make", args);
+        shell::command_out(config.shell(), "make", args);
 
         let mut make = Command::from(make);
         let mut child = make.spawn()?;
@@ -336,8 +338,8 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
 
         while let Some(line) = lines.next().await {
             match line? {
-                Line::Err(line) => shell::command_err(&styles, "install", line),
-                Line::Out(line) => shell::command_out(&styles, "install", line),
+                Line::Err(line) => shell::command_err(config.shell(), "install", line),
+                Line::Out(line) => shell::command_out(config.shell(), "install", line),
             }
         }*/
 
@@ -371,7 +373,7 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
         let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
         let args: String = args.join(" ");
 
-        shell::command_out(&styles, "make", args);
+        writeln!(config.shell(), "{}{}", "make", args)?;
 
         let mut command = Command::from(command);
         let mut child = command.spawn()?;
@@ -386,8 +388,8 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
 
         while let Some(line) = lines.next().await {
             match line? {
-                Line::Err(line) => shell::command_err(&styles, "build", line),
-                Line::Out(line) => shell::command_out(&styles, "build", line),
+                Line::Err(line) => writeln!(config.shell(), "{}{}", "build", line)?,
+                Line::Out(line) => writeln!(config.shell(), "{}{}", "build", line)?,
             }
         }
     }
@@ -414,7 +416,7 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
         let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
         let args: String = args.join(" ");
 
-        shell::command_out(&styles, "cargo", args);
+        writeln!(config.shell(), "{}{}", "cargo", args)?;
 
         let mut command = Command::from(command);
         let mut child = command.spawn()?;
@@ -428,65 +430,9 @@ pub async fn build(_config: mix_config::Config, build_config: Config) -> Result<
         });
 
         while let Some(next) = lines.next().await {
-            println!("{:?}", next);
+            writeln!(config.shell(), "{:?}", next)?;
         }
     }
 
     Ok(())
-}
-
-pub mod shell {
-    use std::fmt::Display;
-    use yansi::{Color, Style};
-
-    pub struct Styles {
-        decoration: &'static str,
-        decoration_style: Style,
-        action_style: Style,
-        arguments_style: Style,
-        pub command_style: Style,
-        output_style: Style,
-        output_err_style: Style,
-    }
-
-    impl Default for Styles {
-        fn default() -> Self {
-            Self {
-                decoration: " >",
-                decoration_style: Style::new(Color::White).dimmed(),
-                action_style: Style::default(),
-                arguments_style: Style::new(Color::Magenta),
-                command_style: Style::new(Color::Green),
-                output_style: Style::default(),
-                output_err_style: Style::new(Color::Red),
-            }
-        }
-    }
-
-    pub fn header(styles: &Styles, action: impl Display, arguments: impl Display) {
-        println!(
-            "{decoration} {action: <13} {arguments}",
-            decoration = styles.decoration_style.paint(&styles.decoration),
-            action = styles.action_style.paint(&action),
-            arguments = styles.arguments_style.paint(&arguments),
-        );
-    }
-
-    pub fn command_out(styles: &Styles, command: impl Display, output: impl Display) {
-        println!(
-            "{decoration} {command} {output}",
-            decoration = styles.decoration_style.paint(&styles.decoration),
-            command = styles.command_style.paint(&command),
-            output = styles.output_style.paint(&output),
-        );
-    }
-
-    pub fn command_err(styles: &Styles, command: impl Display, output: impl Display) {
-        println!(
-            "{decoration} {command} {output}",
-            decoration = styles.decoration_style.paint(&styles.decoration),
-            command = styles.command_style.paint(&command),
-            output = styles.output_err_style.paint(&output),
-        );
-    }
 }
