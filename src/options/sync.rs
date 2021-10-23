@@ -1,7 +1,6 @@
 use clap::Parser;
-use mix_atom::Atom;
-use mix_env::Config;
-use mix_triple::Triple;
+use mix_id::RepositoryId;
+use mix_sync::Config;
 use path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -10,20 +9,15 @@ pub struct Options {
     #[clap(default_value = "/mix", long, parse(from_os_str))]
     pub prefix: PathBuf,
 
-    /// Target triple.
-    #[clap(default_value = Triple::host().as_str(), long)]
-    pub target: Triple,
-
-    /// Package to inspect.
-    pub atom: Atom,
+    /// Repositories to sync.
+    pub repositories: Vec<RepositoryId>,
 }
 
 impl Options {
     pub fn into_config(self) -> Config {
         Config {
             prefix: self.prefix,
-            target: self.target,
-            atom: self.atom,
+            repositories: self.repositories.into_iter().collect(),
         }
     }
 }

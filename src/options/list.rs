@@ -1,7 +1,7 @@
-use clap::Clap;
+use clap::Parser;
 use path::PathBuf;
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 pub struct Options {
     /// Prefix directory.
     #[clap(default_value = "/mix", long, parse(from_os_str))]

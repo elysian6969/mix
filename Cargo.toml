@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies.clap]
-features = ["wrap_help"]
+features = ["derive", "wrap_help"]
 version = "3.0.0-beta"
 
 [dependencies.futures-util]
@@ -36,6 +36,9 @@ path = "crates/manifest"
 
 [dependencies.mix_packages]
 path = "crates/packages"
+
+[dependencies.mix_sync]
+path = "crates/sync"
 
 [dependencies.mix_shell]
 path = "crates/shell"

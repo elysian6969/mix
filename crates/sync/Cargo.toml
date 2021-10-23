@@ -1,5 +1,5 @@
 [package]
-name    = "mix_config"
+name    = "mix_sync"
 version = "0.0.0"
 edition = "2021"
 
@@ -15,9 +15,12 @@ git = "https://gitdab.com/undefined/path"
 [dependencies.mix_atom]
 path = "../atom"
 
+[dependencies.mix_config]
+path = "../config"
+
 [dependencies.mix_id]
-features = ["serde"]
 path = "../id"
+
 
 [dependencies.mix_shell]
 path = "../shell"
@@ -34,13 +37,6 @@ version = "1.12"
 
 [dependencies.yansi]
 version = "0.5" 
-
-[dependencies.serde]
-features = ["derive"]
-version = "1.0"
-
-[dependencies.serde_yaml]
-version = "0.8"
 
 [dependencies.url]
 features = ["serde"]

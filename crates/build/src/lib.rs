@@ -5,17 +5,16 @@
 #![feature(iter_zip)]
 #![feature(inline_const)]
 #![feature(format_args_nl)]
+#![feature(option_result_unwrap_unchecked)]
 
+use self::process::Command;
 use crate::compiler::{Compiler, Linker};
-use command_extra::Line;
-use futures_util::stream::StreamExt;
+use command_extra::{Line, Stdio};
 use mix_atom::Atom;
 use mix_shell::{header, writeln, AsyncWrite};
 use mix_triple::Triple;
 use path::{Path, PathBuf};
 use std::env;
-use std::process::Stdio;
-use tokio::process::Command;
 
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
@@ -23,6 +22,7 @@ pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 //mod autotools;
 mod compiler;
 mod configs;
+mod process;
 
 #[derive(Debug)]
 pub enum Value {
@@ -40,6 +40,14 @@ pub struct Config {
     pub include: Vec<(String, Value)>,
     pub build_dir: bool,
 }
+
+pub(crate) const CLANG: &str = "clang";
+pub(crate) const CLANGXX: &str = "clang++";
+pub(crate) const GCC: &str = "gcc";
+pub(crate) const GXX: &str = "g++";
+pub(crate) const EN_US: &str = "en_US.UTF-8";
+pub(crate) const LD: &str = "ld";
+pub(crate) const LLD: &str = "ld.lld";
 
 pub async fn build(config: mix_config::Config, build_config: Config) -> Result<()> {
     let core = "core".try_into()?;
@@ -131,68 +139,36 @@ pub async fn build(config: mix_config::Config, build_config: Config) -> Result<(
         .collect::<Vec<_>>()
         .join(" ");
 
-    header!(config.shell(), "prefix {}", &build_config.prefix)?;
-    header!(config.shell(), "target {}", &build_config.target)?;
-    header!(config.shell(), "repository_id {}", &repository_id)?;
-    header!(config.shell(), "package_id {}", &package_id)?;
-    header!(config.shell(), "version {}", &version)?;
+    header!(config.shell(), "building {}", &build_config.atom)?;
     header!(config.shell(), "destination {}", &destination)?;
     header!(config.shell(), "cflags {}", &cflags)?;
     header!(config.shell(), "ldflags {}", &ldflags)?;
 
-    enum CargoAction {
-        Update,
-        Build,
+    let build = configs::System::new(package_id, &current_dir).await;
+
+    for (_name, build_config) in build.config.iter() {
+        header!(config.shell(), "found {}", build_config)?;
     }
 
-    pub struct Cargo {
-        work_dir: PathBuf,
-    }
-
-    impl Cargo {
-        pub fn new(work_dir: impl AsRef<Path>) -> Self {
-            let work_dir = work_dir.as_ref().to_path_buf();
-
-            Self { work_dir }
-        }
-    }
-
-    let build_configs = configs::detect(package_id, &current_dir).await;
-
-    for (name, build_config) in build_configs.iter() {
-        writeln!(config.shell(), "DEBUG {} -> {}", name, build_config)?;
-    }
-
-    if let Some(autogen_file) = build_configs
-        .get("autogen")
-        .or_else(|| build_configs.get("autogen.sh"))
-    {
-        let mut command = std::process::Command::new(&autogen_file);
+    if let Some((Some(bootstrap), _)) = build.get_autotools() {
+        let mut command = Command::new(bootstrap);
 
         command
+            .c_compiler(CLANG)
+            .c_flags(&cflags)
+            .cxx_compiler(CLANGXX)
+            .cxx_flags(&cflags)
             .current_dir(&build_dir)
-            .arg(format!("--prefix={}", &destination))
-            .env("CC", "clang")
-            .env("CFLAGS", &cflags)
-            .env("CXX", "clang++")
-            .env("CXXFLAGS", &cflags)
-            .env("HOME", &current_dir)
-            .env("LANG", "en_US.UTF-8")
-            .env("LD", "ld.lld")
-            .env("LDFLAGS", &ldflags)
+            .home_dir(&current_dir)
+            .lang(EN_US)
+            .linker(LLD)
+            .linker_flags(&ldflags)
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
-        let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
-        let args: String = args.join(" ");
-
-        writeln!(config.shell(), "{}{}", &autogen_file, args)?;
-
-        let mut command = Command::from(command);
-        let mut child = command.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
+        let mut child = command.spawn().await?;
+        let mut stdio = child.stdio()?.expect("stdio");
         let mut lines = stdio.lines();
 
         tokio::spawn(async move {
@@ -200,102 +176,36 @@ pub async fn build(config: mix_config::Config, build_config: Config) -> Result<(
             let _ = child.wait().await;
         });
 
-        while let Some(line) = lines.next().await {
+        while let Some(line) = lines.next_line().await {
             match line? {
-                Line::Err(line) => writeln!(config.shell(), "{}{}", "autogen", line)?,
-                Line::Out(line) => writeln!(config.shell(), "{}{}", "autogen", line)?,
+                Line::Err(line) => writeln!(config.shell(), "{} {}", "bootstrap", line)?,
+                Line::Out(line) => writeln!(config.shell(), "{} {}", "bootstrap", line)?,
             }
         }
     }
 
-    if let Some(_build_configure_file) = build_configs
-        .get("build_configure")
-        .or_else(|| build_configs.get("build_configure.sh"))
-    {
-        //let mut command = std::process::Command::new(&build_configure_file);
-        let mut command = std::process::Command::new("sh");
+    if let Some((_, Some(configure))) = build.get_autotools() {
+        let mut command = Command::new(configure);
 
         command
-            .current_dir(&build_dir)
-            //.arg(format!("--prefix={}", &destination))
             .env_clear()
-            .env("CC", "clang")
-            .env("CFLAGS", &cflags)
-            .env("CXX", "clang++")
-            .env("CXXFLAGS", &cflags)
-            .env("HOME", &current_dir)
-            .env(
-                "PS1",
-                format!(
-                    "[{}] ",
-                    config.shell().theme().command_paint(&build_config.atom)
-                ),
-            )
-            .env("LANG", "en_US.UTF-8")
-            .env("LD", "ld.lld")
-            .env("LDFLAGS", &ldflags);
-        /*.stderr(Stdio::piped())
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped());*/
-
-        if build_config.target == Triple::i686() {
-            command.env("CFLAGS", "-m32");
-            command.env("CXXFLAGS", "-m32");
-        }
-
-        /*command.args(build_config.define.iter().map(|(k, v)| match v {
-            Value::Bool(true) => format!("--enable-{k}"),
-            Value::Bool(false) => format!("--disable-{k}"),
-            Value::String(string) => format!("--enable-{k}={string}"),
-        }));
-
-        command.args(build_config.include.iter().map(|(k, v)| match v {
-            Value::Bool(true) => format!("--with-{k}"),
-            Value::Bool(false) => format!("--without-{k}"),
-            Value::String(string) => format!("--with-{k}={string}"),
-        }));
-
-        let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
-        let args: String = args.join(" ");
-
-        shell::command_out(config.shell(), &build_configure_file, args);*/
-
-        let mut command = Command::from(command);
-        let mut child = command.spawn()?;
-        /*let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
-        let mut lines = stdio.lines();*/
-
-        //tokio::spawn(async move {
-        // TODO: Proper error handling!
-        let _ = child.wait().await;
-        //});
-
-        /*while let Some(line) = lines.next().await {
-            match line? {
-                Line::Err(line) => shell::command_err(config.shell(), "build_configure", line),
-                Line::Out(line) => shell::command_out(config.shell(), "build_configure", line),
-            }
-        }
-
-        let mut make = std::process::Command::new("make");
-
-        make.current_dir(&build_dir);
-
-        make.arg(format!("-j{}", build_config.jobs))
+            .env("PATH", "/milk/global/bin")
+            //.arg(format!("--prefix={}", destination))
+            .c_compiler(GCC)
+            .c_flags(&cflags)
+            .cxx_compiler(GXX)
+            .cxx_flags(&cflags)
+            .current_dir(&build_dir)
+            .home_dir(&current_dir)
+            .lang(EN_US)
+            .linker(LD)
+            .linker_flags(&ldflags)
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
 
-        let args: Vec<_> = make.get_args().flat_map(|arg| arg.to_str()).collect();
-        let args: String = args.join(" ");
-
-        shell::command_out(config.shell(), "make", args);
-
-        let mut make = Command::from(make);
-        let mut child = make.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
+        let mut child = command.spawn().await?;
+        let mut stdio = child.stdio()?.expect("stdio");
         let mut lines = stdio.lines();
 
         tokio::spawn(async move {
@@ -303,134 +213,13 @@ pub async fn build(config: mix_config::Config, build_config: Config) -> Result<(
             let _ = child.wait().await;
         });
 
-        while let Some(line) = lines.next().await {
-            match line? {
-                Line::Err(line) => shell::command_err(config.shell(), "build", line),
-                Line::Out(line) => shell::command_out(config.shell(), "build", line),
-            }
-        }
+        while let Some(line) = lines.next_line().await {
+            writeln!(config.shell(), "{} {:?}", "configure", line)?;
 
-        let mut make = std::process::Command::new("make");
-
-        make.current_dir(&build_dir);
-
-        make.arg("install")
-            .arg(format!("-j{}", build_config.jobs))
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        let args: Vec<_> = make.get_args().flat_map(|arg| arg.to_str()).collect();
-        let args: String = args.join(" ");
-
-        shell::command_out(config.shell(), "make", args);
-
-        let mut make = Command::from(make);
-        let mut child = make.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
-        let mut lines = stdio.lines();
-
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
-
-        while let Some(line) = lines.next().await {
-            match line? {
-                Line::Err(line) => shell::command_err(config.shell(), "install", line),
-                Line::Out(line) => shell::command_out(config.shell(), "install", line),
-            }
-        }*/
-
-        return Ok(());
-    }
-
-    if let Some(_makefile) = build_configs
-        .get("makefile")
-        .or_else(|| build_configs.get("Makefile"))
-        .or_else(|| build_configs.get("gnumakefile"))
-        .or_else(|| build_configs.get("GNUmakefile"))
-        .or_else(|| build_configs.get("GNUMakefile"))
-    {
-        let mut command = std::process::Command::new("make");
-
-        command
-            .arg(format!("--jobs={}", build_config.jobs))
-            .env("PREFIX", &destination)
-            .env("CC", "clang")
-            .env("CFLAGS", &cflags)
-            .env("CXX", "clang++")
-            .env("CXXFLAGS", &cflags)
-            .env("HOME", &current_dir)
-            .env("LANG", "en_US.UTF-8")
-            .env("LD", "ld.lld")
-            .env("LDFLAGS", &ldflags)
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
-        let args: String = args.join(" ");
-
-        writeln!(config.shell(), "{}{}", "make", args)?;
-
-        let mut command = Command::from(command);
-        let mut child = command.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
-        let mut lines = stdio.lines();
-
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
-
-        while let Some(line) = lines.next().await {
-            match line? {
-                Line::Err(line) => writeln!(config.shell(), "{}{}", "build", line)?,
-                Line::Out(line) => writeln!(config.shell(), "{}{}", "build", line)?,
-            }
-        }
-    }
-
-    if build_configs.get("Cargo.toml").is_some() {
-        let mut command = std::process::Command::new("cargo");
-
-        command
-            .arg("build")
-            .arg(format!("--jobs={}", build_config.jobs))
-            .arg("--release")
-            .env("CC", "clang")
-            .env("CFLAGS", &cflags)
-            .env("CXX", "clang++")
-            .env("CXXFLAGS", &cflags)
-            .env("HOME", &current_dir)
-            .env("LANG", "en_US.UTF-8")
-            .env("LD", "ld.lld")
-            .env("LDFLAGS", &ldflags)
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        let args: Vec<_> = command.get_args().flat_map(|arg| arg.to_str()).collect();
-        let args: String = args.join(" ");
-
-        writeln!(config.shell(), "{}{}", "cargo", args)?;
-
-        let mut command = Command::from(command);
-        let mut child = command.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
-        let mut lines = stdio.lines();
-
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
-
-        while let Some(next) = lines.next().await {
-            writeln!(config.shell(), "{:?}", next)?;
+            /*match line? {
+                Line::Err(line) => writeln!(config.shell(), "{} {}", "configure", line)?,
+                Line::Out(line) => writeln!(config.shell(), "{} {}", "configure", line)?,
+            }*/
         }
     }
 

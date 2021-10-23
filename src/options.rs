@@ -1,11 +1,12 @@
-use clap::{AppSettings, Clap};
+use clap::{AppSettings, Parser};
 use path::PathBuf;
 
 mod build;
 mod env;
 mod list;
+mod sync;
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 pub enum Subcommand {
     /// Inspect a package's build environment.
     Env(env::Options),
@@ -15,10 +16,12 @@ pub enum Subcommand {
 
     /// Build a package.
     Build(build::Options),
+
+    /// Sync repositories
+    Sync(sync::Options),
 }
 
-#[derive(Clap, Debug)]
-#[clap(global_setting = AppSettings::ColoredHelp)]
+#[derive(Parser, Debug)]
 pub struct Options {
     #[clap(default_value = "/milk", long)]
     pub prefix: PathBuf,
@@ -29,6 +32,6 @@ pub struct Options {
 
 impl Options {
     pub fn parse() -> Self {
-        <Self as Clap>::parse()
+        <Self as Parser>::parse()
     }
 }

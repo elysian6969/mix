@@ -135,35 +135,3 @@ pub fn print_error(
 
     Ok(())
 }
-
-/*async fn async_main() {
-    let path = std::env::args().nth(1).unwrap();
-    let text = std::fs::read_to_string(&path).unwrap();
-    let manifest = match Manifest::from_str(&text) {
-        Ok(manifest) => manifest,
-        Err(Error::Serde(error)) => {
-            crate::print_error(error, &path, &text).unwrap();
-
-            return;
-        }
-        Err(error) => {
-            println!("{:?}", error);
-
-            return;
-        }
-    };
-
-    println!("dependencies");
-
-    for dependency in manifest.dependencies {
-        println!("  {:?}", dependency);
-    }
-
-    println!("sources");
-
-    for source in manifest.sources {
-        println!("  {:?}", source);
-        println!("    source url: {}", source.url());
-        println!("    cache directory: {}", source.cache("/mix/cache"));
-    }
-}*/

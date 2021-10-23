@@ -13,12 +13,12 @@ mod options;
 
 async fn async_main() -> Result<()> {
     let options = Options::parse();
-    let config = Config::new(&options.prefix);
+    let config = Config::new(&options.prefix).await?;
     let packages = Packages::from_config(&config).await?;
 
     match options.subcommand {
         Subcommand::Env(env) => {
-            mix_env::env(config, env.into_config()).await?;
+            mix_env::env(config.clone(), env.into_config()).await?;
         }
         Subcommand::List(list) => {
             for package in packages.iter() {
@@ -80,13 +80,16 @@ async fn async_main() -> Result<()> {
                     .theme()
                     .arguments_paint(packages.installed().len()),
             )?;
-
-            config.shell().flush().await?;
         }
         Subcommand::Build(build) => {
-            mix_build::build(config, build.into_config()).await?;
+            mix_build::build(config.clone(), build.into_config()).await?;
+        }
+        Subcommand::Sync(sync) => {
+            mix_sync::sync(config.clone(), sync.into_config()).await?;
         }
     }
+
+    config.shell().flush().await?;
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-use clap::Clap;
+use clap::Parser;
 use mix_atom::Atom;
 use mix_build::{Config, Value};
 use mix_triple::Triple;
@@ -23,7 +23,7 @@ where
     Ok((k, v))
 }
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 pub struct Options {
     /// Prefix directory.
     #[clap(default_value = "/mix", long, parse(from_os_str))]

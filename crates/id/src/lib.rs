@@ -6,3 +6,6 @@ mod error;
 mod package_id;
 mod repository_id;
 pub(crate) mod util;
+
+#[cfg(feature = "serde")]
+mod serde;

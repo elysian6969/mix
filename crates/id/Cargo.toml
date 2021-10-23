@@ -5,3 +5,7 @@ edition = "2021"
 
 [dependencies.regex]
 version = "1.5"
+
+[dependencies.serde]
+optional = true
+version = "1.0"

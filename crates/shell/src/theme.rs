@@ -62,8 +62,12 @@ impl Theme {
         self.error_style.paint(item)
     }
 
-    pub fn header_prefix(&self) -> &str {
+    pub fn header_prefix_str(&self) -> &str {
         self.header_prefix
+    }
+
+    pub fn header_prefix(&self) -> Paint<&str> {
+        self.header_prefix_paint(self.header_prefix)
     }
 
     pub fn header_prefix_style(&self) -> &Style {
