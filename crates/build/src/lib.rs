@@ -11,10 +11,12 @@
 use self::process::Command;
 use crate::compiler::{Compiler, Linker};
 use command_extra::{Line, Stdio};
+use futures_util::future::FutureExt;
+use futures_util::stream::TryStreamExt;
 use mix_atom::{Atom, Requirement};
 use mix_id::RepositoryId;
 use mix_packages::{Package, Packages};
-use mix_shell::{header, writeln, AsyncWrite};
+use mix_shell::{header, write, writeln, AsyncWrite};
 use mix_source::Kind;
 use mix_triple::Triple;
 use path::{Path, PathBuf};
@@ -22,6 +24,8 @@ use std::borrow::Borrow;
 use std::borrow::Cow;
 use std::env;
 use std::sync::Arc;
+use tokio::time;
+use tokio::time::Duration;
 
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
@@ -105,227 +109,386 @@ pub async fn build(
     let dependencies = dependencies.into_iter().rev().collect::<Vec<_>>();
 
     for dependency in dependencies.iter() {
-        println!("{}/{}", dependency.repository_id(), dependency.package_id());
+        //println!("{}/{}", dependency.repository_id(), dependency.package_id());
     }
 
     let mut sources = vec![];
     let mut exists = HashSet::new();
-    let mut iter = dependencies
-        .iter()
-        .flat_map(|dependency| dependency.sources().iter());
+    let mut iter = dependencies.iter().flat_map(|package| {
+        package
+            .sources()
+            .iter()
+            .map(|source| (package.clone(), source))
+    });
 
-    for source in iter {
+    for (package, source) in iter {
         if !exists.contains(source) {
-            sources.push(source);
+            sources.push((package, source));
             exists.insert(source);
         }
     }
 
-    for source in sources {
+    for (package, source) in sources {
         source.update(&config).await?;
 
         let versions = source.versions(&config).await?;
 
         if let Some(entry) = versions.latest() {
             config.download_file(&entry.path, &entry.url).await?;
-        }
-    }
 
-    return Ok(());
+            let version_str = entry.version.to_string();
+            let build_dir = package.build_prefix().join(version_str);
 
-    /*
-    // SAFETY: above clause requires at least 1 package to be present.
-    let package = unsafe { matches.get_unchecked(0) };
-    let repository_id = package.repository_id();
-    let package_id = package.package_id();
-    let version = &build_config.atom.version;
-    let target_str = build_config.target.as_str();
-    let version_str = version.to_string();
-    let version_str = version_str.as_str();
+            //println!("{:?}", &build_dir);
 
-    let build_dir = config
-        .build_prefix()
-        .join(target_str)
-        .join(&repository_id)
-        .join(&package_id)
-        .join(&version_str);
+            let _ = build_dir.create_dir_all_async().await;
+            let mut command = Command::new("bsdtar");
 
-    let cache_dir = config.cache_prefix().join(&repository_id);
+            command
+                .arg("xvf")
+                .arg(&entry.path)
+                .current_dir(&build_dir)
+                .home_dir("/")
+                .stderr(Stdio::piped())
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped());
 
-    let destination = build_config
-        .prefix
-        .join(target_str)
-        .join(&repository_id)
-        .join(&package_id)
-        .join(&version_str);
+            let mut child = command.spawn().await?;
+            let mut stdio = child.stdio()?.expect("stdio");
+            let mut lines = stdio.lines();
 
-    let libc_root = build_config
-        .prefix
-        .join(target_str)
-        .join(&repository_id)
-        .join("glibc")
-        .join("2.34.0");
+            tokio::spawn(async move {
+                // TODO: Proper error handling!
+                let _ = child.wait().await;
+            });
 
-    let libc_lib = libc_root.join("lib");
-    let dynamic_linker = format!("ld-linux-{}.so.2", build_config.target.arch_str());
+            write!(config.shell(), "\r\x1b[K > extract")?;
+            config.shell().flush().await?;
 
-    let _compiler_root = build_config
-        .prefix
-        .join(build_config.target.as_str())
-        .join(&repository_id)
-        .join("gcc")
-        .join("11.2.0");
+            let mut interval = time::interval(Duration::from_millis(50));
+            let mut last_line = String::new();
 
-    let current_dir: PathBuf = env::current_dir()?.into();
-    let build_dir = if build_config.build_dir {
-        build_dir.join("build")
-    } else {
-        build_dir
-    };
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        write!(config.shell(), "\r\x1b[K > extract {}", &last_line)?;
+                        config.shell().flush().await?;
+                    }
+                    line = lines.next_line() => if let Some(line) = line {
+                        match line? {
+                            Line::Err(line) => last_line = line,
+                            Line::Out(line) => last_line = line,
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
 
-    let _ = build_dir.create_dir_all_async().await;
+            let repository_id = package.repository_id();
+            let package_id = package.package_id();
+            let version = &entry.version;
+            let target_str = build_config.target.as_str();
+            let version_str = version.to_string();
+            let version_str = version_str.as_str();
 
-    // NOTE: autotools appears to be retarded
-    // compiler.file("/mix/x86_64-linux-gnu/core/glibc/2.34.0/lib/crti.o")
+            let destination = build_config
+                .prefix
+                .join(target_str)
+                .join(&repository_id)
+                .join(&package_id)
+                .join(&version_str);
 
-    let mut compiler = Compiler::new();
-    let mut linker = Linker::new();
+            let libc_root = build_config
+                .prefix
+                .join(target_str)
+                .join(&repository_id)
+                .join("glibc")
+                .join("2.34.0");
 
-    compiler.opt_level("fast");
+            let libc_lib = libc_root.join("lib");
+            let dynamic_linker = format!("ld-linux-{}.so.2", build_config.target.arch_str());
 
-    if matches!(
-        build_config.target,
-        const { Triple::i686() } | const { Triple::x86_64() }
-    ) {
-        compiler.target_cpu("native");
-    }
+            let _compiler_root = build_config
+                .prefix
+                .join(build_config.target.as_str())
+                .join(&repository_id)
+                .join("gcc")
+                .join("11.2.0");
 
-    compiler
-        .no_default_libs()
-        .no_start_files()
-        .pic()
-        .linker("lld")
-        .library_dir("/milk/x86_64-linux-gnu/core/gcc/11.2.0/lib/gcc/x86_64-pc-linux-gnu/11.2.0")
-        .library_dir(&libc_lib)
-        .file(libc_lib.join("crt1.o"))
-        .file(libc_lib.join("crtn.o"))
-        .link("gcc")
-        .link("c")
-        .runtime_path(&libc_lib)
-        .dynamic_linker(libc_lib.join(&dynamic_linker));
+            let current_dir = build_dir.clone();
+            let mut source_dir = current_dir.clone();
 
-    linker
-        .runtime_path(&libc_lib)
-        .dynamic_linker(libc_lib.join(dynamic_linker));
+            let build_dir = if build_config.build_dir {
+                build_dir.join("build")
+            } else {
+                build_dir
+            };
 
-    let cflags = compiler
-        .as_slice()
-        .iter()
-        .map(|s| s.to_string_lossy())
-        .intersperse(Cow::Borrowed(" "))
-        .collect::<String>();
+            let mut dirs = current_dir.read_dir_async().await?;
 
-    let ldflags = linker
-        .as_slice()
-        .iter()
-        .map(|s| s.to_string_lossy())
-        .intersperse(Cow::Borrowed(" "))
-        .collect::<String>();
+            if let Some(dir) = dirs.try_next().await? {
+                source_dir = dir.path();
+            }
 
-    writeln!(config.shell(), "{:?}", package);
+            let _ = build_dir.create_dir_all_async().await;
 
-    writeln!(config.shell(), "installed: {:?}", package.installed());
+            // NOTE: autotools appears to be retarded
+            // compiler.file("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/crti.o")
 
-    header!(
-        config.shell(),
-        "building {}/{}:{}",
-        package.repository_id(),
-        package.package_id(),
-        &build_config.atom.version,
-    )?;
+            let mut compiler = Compiler::new();
+            let mut linker = Linker::new();
 
-    header!(config.shell(), "destination {}", &destination)?;
-    header!(config.shell(), "build {}", &build_dir)?;
-    header!(config.shell(), "cflags {}", &cflags)?;
-    header!(config.shell(), "ldflags {}", &ldflags)?;
+            compiler.opt_level("fast");
 
-    let build = configs::System::new(package_id, &current_dir).await;
+            if matches!(
+                build_config.target,
+                const { Triple::i686() } | const { Triple::x86_64() }
+            ) {
+                compiler.target_cpu("native");
+            }
 
-    for (_name, build_config) in build.config.iter() {
-        header!(config.shell(), "found {}", build_config)?;
-    }
+            compiler
+                .no_default_libs()
+                .no_start_files()
+                .pic()
+                .linker("lld")
+                .library_dir(
+                    "/milk/x86_64-linux-gnu/core/gcc/11.2.0/lib/gcc/x86_64-pc-linux-gnu/11.2.0",
+                )
+                .library_dir(&libc_lib)
+                .file(libc_lib.join("crt1.o"))
+                .file(libc_lib.join("crtn.o"))
+                .link("gcc")
+                .link("c")
+                .runtime_path(&libc_lib)
+                .dynamic_linker(libc_lib.join(&dynamic_linker));
 
-    if let Some((Some(bootstrap), _)) = build.get_autotools() {
-        let mut command = Command::new(bootstrap);
+            linker
+                .runtime_path(&libc_lib)
+                .dynamic_linker(libc_lib.join(dynamic_linker));
 
-        command
-            .c_compiler(CLANG)
-            .c_flags(&cflags)
-            .cxx_compiler(CLANGXX)
-            .cxx_flags(&cflags)
-            .current_dir(&build_dir)
-            .home_dir(&current_dir)
-            .lang(EN_US)
-            .linker(LLD)
-            .linker_flags(&ldflags)
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
+            let cflags = compiler
+                .as_slice()
+                .iter()
+                .map(|s| s.to_string_lossy())
+                .intersperse(Cow::Borrowed(" "))
+                .collect::<String>();
 
-        let mut child = command.spawn().await?;
-        let mut stdio = child.stdio()?.expect("stdio");
-        let mut lines = stdio.lines();
+            let ldflags = linker
+                .as_slice()
+                .iter()
+                .map(|s| s.to_string_lossy())
+                .intersperse(Cow::Borrowed(" "))
+                .collect::<String>();
 
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
+            //writeln!(config.shell(), "{:?}", package);
+            //writeln!(config.shell(), "installed: {:?}", package.installed());
 
-        while let Some(line) = lines.next_line().await {
-            match line? {
-                Line::Err(line) => writeln!(config.shell(), "{} {}", "bootstrap", line)?,
-                Line::Out(line) => writeln!(config.shell(), "{} {}", "bootstrap", line)?,
+            header!(
+                config.shell(),
+                "building {}/{}:{}",
+                package.repository_id(),
+                package.package_id(),
+                &version,
+            )?;
+
+            header!(config.shell(), "destination {}", &destination)?;
+            header!(config.shell(), "build {}", &build_dir)?;
+            header!(config.shell(), "cflags {}", &cflags)?;
+            header!(config.shell(), "ldflags {}", &ldflags)?;
+
+            let build = configs::System::new(package_id, &source_dir).await;
+
+            for (_name, build_config) in build.config.iter() {
+                header!(config.shell(), "found {}", build_config)?;
+            }
+
+            if let Some((Some(bootstrap), _)) = build.get_autotools() {
+                let mut command = Command::new(bootstrap);
+
+                command
+                    .c_compiler(CLANG)
+                    .c_flags(&cflags)
+                    .cxx_compiler(CLANGXX)
+                    .cxx_flags(&cflags)
+                    .current_dir(&build_dir)
+                    .home_dir(&current_dir)
+                    .lang(EN_US)
+                    .linker(LLD)
+                    .linker_flags(&ldflags)
+                    .stderr(Stdio::piped())
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped());
+
+                let mut child = command.spawn().await?;
+                let mut stdio = child.stdio()?.expect("stdio");
+                let mut lines = stdio.lines();
+
+                tokio::spawn(async move {
+                    // TODO: Proper error handling!
+                    let _ = child.wait().await;
+                });
+
+                while let Some(line) = lines.next_line().await {
+                    match line? {
+                        Line::Err(line) => writeln!(config.shell(), "{} {}", "bootstrap", line)?,
+                        Line::Out(line) => writeln!(config.shell(), "{} {}", "bootstrap", line)?,
+                    }
+                }
+            }
+
+            if let Some((_, Some(configure))) = build.get_autotools() {
+                let mut command = Command::new(configure);
+
+                command
+                    .arg(format!("--prefix={}", &destination))
+                    //.env_clear()
+                    //.c_compiler(GCC)
+                    //.c_flags(&cflags)
+                    //.cxx_compiler(GXX)
+                    //.cxx_flags(&cflags)
+                    .current_dir(&build_dir)
+                    .home_dir(&current_dir)
+                    .lang(EN_US)
+                    //.linker(LD)
+                    //.linker_flags(&ldflags)
+                    //.paths(["/milk/global/bin", "/bin", "/sbin", "/usr/bin", "/usr/sbin"])
+                    .stderr(Stdio::piped())
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::piped());
+
+                let mut child = command.spawn().await?;
+                let mut stdio = child.stdio()?.expect("stdio");
+                let mut lines = stdio.lines();
+
+                tokio::spawn(async move {
+                    // TODO: Proper error handling!
+                    let _ = child.wait().await;
+                });
+
+                let mut interval = time::interval(Duration::from_millis(50));
+                let mut last_line = String::new();
+
+                loop {
+                    tokio::select! {
+                        _ = interval.tick() => {
+                            config.shell().flush().await?;
+                        }
+                        line = lines.next_line() => if let Some(line) = line {
+                            match line? {
+                                Line::Err(line) => last_line = line,
+                                Line::Out(line) => last_line = line,
+                            }
+
+                            writeln!(config.shell(), " > configure {}", &last_line)?;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            let mut command = Command::new("make");
+
+            command
+                .arg(format!("-j{}", build_config.jobs))
+                //.env_clear()
+                //.c_compiler(GCC)
+                //.c_flags(&cflags)
+                //.cxx_compiler(GXX)
+                //.cxx_flags(&cflags)
+                .current_dir(&build_dir)
+                .home_dir(&current_dir)
+                .lang(EN_US)
+                //.linker(LD)
+                //.linker_flags(&ldflags)
+                //.paths(["/milk/global/bin", "/bin", "/sbin", "/usr/bin", "/usr/sbin"])
+                .stderr(Stdio::piped())
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped());
+
+            let mut child = command.spawn().await?;
+            let mut stdio = child.stdio()?.expect("stdio");
+            let mut lines = stdio.lines();
+
+            tokio::spawn(async move {
+                // TODO: Proper error handling!
+                let _ = child.wait().await;
+            });
+
+            let mut interval = time::interval(Duration::from_millis(50));
+            let mut last_line = String::new();
+
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        config.shell().flush().await?;
+                    }
+                    line = lines.next_line() => if let Some(line) = line {
+                        match line? {
+                            Line::Err(line) => last_line = line,
+                            Line::Out(line) => last_line = line,
+                        }
+
+                        writeln!(config.shell(), " > make {}", &last_line)?;
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            let mut command = Command::new("make");
+
+            command
+                .arg("install")
+                .arg(format!("-j{}", build_config.jobs))
+                //.env_clear()
+                //.c_compiler(GCC)
+                //.c_flags(&cflags)
+                //.cxx_compiler(GXX)
+                //.cxx_flags(&cflags)
+                .current_dir(&build_dir)
+                .home_dir(&current_dir)
+                .lang(EN_US)
+                //.linker(LD)
+                //.linker_flags(&ldflags)
+                //.paths(["/milk/global/bin", "/bin", "/sbin", "/usr/bin", "/usr/sbin"])
+                .stderr(Stdio::piped())
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped());
+
+            let mut child = command.spawn().await?;
+            let mut stdio = child.stdio()?.expect("stdio");
+            let mut lines = stdio.lines();
+
+            tokio::spawn(async move {
+                // TODO: Proper error handling!
+                let _ = child.wait().await;
+            });
+
+            let mut interval = time::interval(Duration::from_millis(50));
+            let mut last_line = String::new();
+
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        config.shell().flush().await?;
+                    }
+                    line = lines.next_line() => if let Some(line) = line {
+                        match line? {
+                            Line::Err(line) => last_line = line,
+                            Line::Out(line) => last_line = line,
+                        }
+
+                        writeln!(config.shell(), " > make {}", &last_line)?;
+                    } else {
+                        break;
+                    }
+                }
             }
         }
     }
-
-    if let Some((_, Some(configure))) = build.get_autotools() {
-        let mut command = Command::new(configure);
-
-        command
-            .env_clear()
-            .c_compiler(GCC)
-            .c_flags(&cflags)
-            .cxx_compiler(GXX)
-            .cxx_flags(&cflags)
-            .current_dir(&build_dir)
-            .home_dir(&current_dir)
-            .lang(EN_US)
-            .linker(LD)
-            .linker_flags(&ldflags)
-            .paths(["/milk/global/bin"])
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        let mut child = command.spawn().await?;
-        let mut stdio = child.stdio()?.expect("stdio");
-        let mut lines = stdio.lines();
-
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
-
-        while let Some(line) = lines.next_line().await {
-            writeln!(config.shell(), "{} {:?}", "configure", line)?;
-
-            / *match line? {
-                Line::Err(line) => writeln!(config.shell(), "{} {}", "configure", line)?,
-                Line::Out(line) => writeln!(config.shell(), "{} {}", "configure", line)?,
-            }* /
-        }
-    }*/
 
     Ok(())
 }

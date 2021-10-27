@@ -26,7 +26,7 @@ where
 #[derive(Parser, Debug)]
 pub struct Options {
     /// Prefix directory.
-    #[clap(default_value = "/mix", long, parse(from_os_str))]
+    #[clap(default_value = "/milk", long, parse(from_os_str))]
     pub prefix: PathBuf,
 
     /// Target triple.

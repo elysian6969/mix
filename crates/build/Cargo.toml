@@ -35,5 +35,8 @@ path = "../shell"
 path = "../triple"
 
 [dependencies.tokio]
-features = ["full"]
+features = ["io-util", "process", "macros", "sync"]
 version = "1.12"
+
+[dependencies.ubyte]
+version = "0.10"

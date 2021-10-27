@@ -59,7 +59,7 @@ pub async fn env(_gconfig: mix_config::Config, config: Config) -> Result<()> {
     let current_dir: PathBuf = env::current_dir()?.into();
 
     // NOTE: autotools appears to be retarded
-    // compiler.file("/mix/x86_64-linux-gnu/core/glibc/2.34.0/lib/crti.o")
+    // compiler.file("/milk/x86_64-linux-gnu/core/glibc/2.34.0/lib/crti.o")
 
     let mut compiler = Compiler::new();
     let mut linker = Linker::new();
@@ -78,7 +78,7 @@ pub async fn env(_gconfig: mix_config::Config, config: Config) -> Result<()> {
         .no_start_files()
         .pic()
         .linker("lld")
-        .library_dir("/mix/x86_64-linux-gnu/core/gcc/11.2.0/lib/gcc/x86_64-pc-linux-gnu/11.2.0")
+        .library_dir("/milk/x86_64-linux-gnu/core/gcc/11.2.0/lib/gcc/x86_64-pc-linux-gnu/11.2.0")
         .library_dir(&libc_lib)
         .file(libc_lib.join("crt1.o"))
         .file(libc_lib.join("crtn.o"))

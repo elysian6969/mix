@@ -133,21 +133,17 @@ impl Config {
         self.shell().flush().await?;
 
         let mut interval = time::interval(Duration::from_millis(50));
+        interval.tick().await;
         let mut downloaded = 0;
         let mut destination = File::create(&partial).await?;
         let response = self.0.http.get(url).send().await?;
-        let length = response.content_length();
         let mut stream = response.bytes_stream();
 
         loop {
             tokio::select! {
                 _ = interval.tick() => {
-                    if let Some(length) = length {
-                        let progress = (downloaded as u64 / length) as f32;
-
-                        write!(self.shell(), "\r\x1b[K > {} {}", file_name, ByteUnit::Byte(downloaded as u64))?;
-                        self.shell().flush().await?;
-                    }
+                    write!(self.shell(), "\r\x1b[K > {} {}", file_name, ByteUnit::Byte(downloaded as u64))?;
+                    self.shell().flush().await?;
                 }
                 bytes = stream.next() => if let Some(bytes) = bytes {
                     let bytes = bytes?;
