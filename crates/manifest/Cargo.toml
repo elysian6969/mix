@@ -11,8 +11,11 @@ features = ["serde"]
 path = "../atom"
 
 [dependencies.mix_source]
-features = ["serde"]
+#features = ["serde"]
 path = "../source"
+
+[dependencies.path]
+git = "https://gitdab.com/undefined/path"
 
 [dependencies.semver]
 features = ["serde"]

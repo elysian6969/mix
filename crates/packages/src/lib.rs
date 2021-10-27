@@ -20,6 +20,7 @@ pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub mod atoms;
+pub mod matches;
 pub mod packages;
 pub mod set;
 mod shared;
@@ -257,7 +258,7 @@ impl Packages {
     }
 
     /// Get matching atoms.
-    pub fn atoms(&self, atom: &Atom) -> atoms::Atoms<'_> {
+    pub fn atoms<'a>(&'a self, atom: &'a Atom) -> atoms::Atoms<'a> {
         if let Some(repository_id) = &atom.repository_id {
             let iter = self.get(&repository_id, &atom.package_id).into_iter();
 
@@ -267,6 +268,23 @@ impl Packages {
 
             atoms::Atoms::Set(iter)
         }
+    }
+
+    /// Get matches.
+    pub fn matches<'a>(&'a self, requirement: &'a mix_atom::Requirement) -> matches::Matches<'a> {
+        let iter = if let Some(repository_id) = &requirement.repository_id {
+            let iter = self
+                .get(&repository_id, &requirement.package_id)
+                .into_iter();
+
+            atoms::Atoms::Exact(iter)
+        } else {
+            let iter = self.packages_iter(&requirement.package_id);
+
+            atoms::Atoms::Set(iter)
+        };
+
+        matches::Matches { iter, requirement }
     }
 
     /// Get matching repositories.

@@ -3,6 +3,10 @@ name    = "mix_id"
 version = "0.0.0"
 edition = "2021"
 
+[dependencies.path]
+optional = true
+git = "https://gitdab.com/undefined/path"
+
 [dependencies.regex]
 version = "1.5"
 

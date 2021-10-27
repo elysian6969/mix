@@ -18,8 +18,15 @@ path = "../atom"
 [dependencies.mix_config]
 path = "../config"
 
+[dependencies.mix_packages]
+path = "../packages"
+
 [dependencies.mix_id]
+features = ["path"]
 path = "../id"
+
+[dependencies.mix_source]
+path = "../source"
 
 [dependencies.mix_shell]
 path = "../shell"

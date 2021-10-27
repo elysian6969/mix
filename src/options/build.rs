@@ -1,5 +1,5 @@
 use clap::Parser;
-use mix_atom::Atom;
+use mix_atom::Requirement;
 use mix_build::{Config, Value};
 use mix_triple::Triple;
 use path::PathBuf;
@@ -34,7 +34,7 @@ pub struct Options {
     pub target: Triple,
 
     /// Package to install.
-    pub atom: Atom,
+    pub requirement: Requirement,
 
     /// Jobs to build with.
     #[clap(long, short)]
@@ -58,7 +58,7 @@ impl Options {
         Config {
             prefix: self.prefix,
             target: self.target,
-            atom: self.atom,
+            requirement: self.requirement,
             jobs: self.jobs,
             define: self.define,
             include: self.include,

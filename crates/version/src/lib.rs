@@ -1,5 +1,6 @@
 #![feature(const_trait_impl)]
 #![feature(map_first_last)]
+#![feature(str_split_as_str)]
 
 pub use crate::error::Error;
 pub use crate::versions::Versions;
@@ -48,6 +49,65 @@ impl Version {
         semver::Version::parse(text)
             .map(|version| Self { version })
             .map_err(|error| unsafe { mem::transmute(error) })
+    }
+
+    pub fn parse_anything(text: &str) -> Self {
+        let iter = text.split(split_digit as SplitDigit);
+        let mut iter = Split { iter };
+
+        let major = iter.next().unwrap_or(0);
+        let minor = iter.next().unwrap_or(0);
+        let patch = iter.next().unwrap_or(0);
+        let build = iter.as_str();
+
+        let version = semver::Version {
+            major,
+            minor,
+            patch,
+            pre: Prerelease::EMPTY,
+            build: BuildMetadata::new(build).unwrap_or_default(),
+        };
+
+        Self { version }
+    }
+}
+
+use std::str;
+
+type SplitDigit = fn(char) -> bool;
+
+fn split_digit(character: char) -> bool {
+    !character.is_ascii_digit()
+}
+
+struct Split<'a> {
+    iter: str::Split<'a, SplitDigit>,
+}
+
+impl<'a> Split<'a> {
+    pub fn as_str(&'a self) -> &'a str {
+        self.iter.as_str()
+    }
+}
+
+impl<'a> Iterator for Split<'a> {
+    type Item = u64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.iter.next() {
+                Some(value) => {
+                    if value.is_empty() {
+                        continue;
+                    }
+
+                    if let Ok(value) = value.parse() {
+                        return Some(value);
+                    }
+                }
+                None => return None,
+            }
+        }
     }
 }
 

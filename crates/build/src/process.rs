@@ -32,6 +32,7 @@ mod env {
     pub(crate) const LDFLAGS: &str = "LDFLAGS";
 
     pub(crate) const PATH: &str = "PATH";
+    pub(crate) const PATH_SEPERATOR: &str = ":";
 
     pub(crate) const PS1: &str = "PS1";
 }
@@ -180,6 +181,7 @@ impl Command {
             .into_iter()
             // SAFETY: silence rustc, silence...
             .map(|path| unsafe { std::mem::transmute::<_, &OsStr>(path.as_ref()) })
+            .intersperse(unsafe { std::mem::transmute::<_, &OsStr>(env::PATH_SEPERATOR) })
             .collect::<OsString>();
 
         self.command.env(env::PATH, paths);

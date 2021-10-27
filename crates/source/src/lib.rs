@@ -1,17 +1,26 @@
+#![feature(map_first_last)]
 #![feature(option_result_unwrap_unchecked)]
+#![feature(str_split_as_str)]
 
 pub use crate::error::Error;
 pub use crate::sources::{Iter, Sources};
 use mix_shell::{async_trait, write, AsyncDisplay, Shell};
+use mix_version::Version;
 use path::{Path, PathBuf};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 use url::Url;
 
+mod github;
+mod gitlab;
+
 mod error;
 mod sources;
 
-#[cfg(feature = "serde")]
+pub mod versions;
+
+//#[cfg(feature = "serde")]
 mod serde;
 
 pub(crate) type Error2 = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -128,6 +137,58 @@ impl Source {
             Gitlab => prefix.join("gitlab").join(&self.serialization),
             Gnu => prefix.join("gnu").join(&self.serialization),
         }
+    }
+
+    pub async fn update(&self, config: &mix_config::Config) -> Result<()> {
+        match self.kind() {
+            Kind::Github => unsafe {
+                let url = format!(
+                    "{base}/repos/{user}/{repo}/tags",
+                    base = "https://api.github.com",
+                    user = self.user().unwrap_unchecked(),
+                    repo = self.repository().unwrap_unchecked()
+                );
+
+                let dir = self.cache(config.cache_prefix());
+                let tags = dir.join("tags.json");
+                let _ = dir.create_dir_all_async().await;
+
+                config.download_file(tags, url).await?;
+            },
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    pub async fn versions(&self, config: &mix_config::Config) -> Result<versions::Versions> {
+        let dir = self.cache(config.cache_prefix());
+        let tags = dir.join("tags.json");
+
+        let versions = match self.kind() {
+            Kind::Github => {
+                let slice = tags.read_async().await?;
+                let tags: Vec<github::Tag> = serde_json::from_slice(&slice)?;
+
+                tags.into_iter()
+                    .flat_map(|tag| {
+                        let version = Version::parse_anything(&tag.name?);
+                        let url = Url::parse(&tag.tarball_url?).ok()?;
+                        let path = dir.join(format!("v{}.tar.gz", &version));
+                        let file = self::versions::Entry {
+                            path,
+                            url,
+                            version: version.clone(),
+                        };
+
+                        Some((version, file))
+                    })
+                    .collect::<BTreeMap<_, _>>()
+            }
+            _ => BTreeMap::new(),
+        };
+
+        Ok(versions::Versions { versions })
     }
 }
 

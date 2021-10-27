@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-pub use async_trait::async_trait;
 use core::fmt::Arguments;
 
 pub use crate::shell::Shell;
 pub use crate::theme::Theme;
+pub use async_trait::async_trait;
 
 mod shell;
 mod theme;
@@ -73,7 +73,6 @@ macro_rules! header {
         )
     });
 }
-
 
 #[async_trait(?Send)]
 impl AsyncDisplay<Shell> for url::Url {

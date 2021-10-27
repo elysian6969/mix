@@ -242,12 +242,12 @@ impl From<Arc<PackageRef>> for Package {
 
 impl Borrow<RepositoryId> for Package {
     fn borrow(&self) -> &RepositoryId {
-        self.0.repository_id()
+        self.repository_id()
     }
 }
 
 impl Borrow<PackageId> for Package {
     fn borrow(&self) -> &PackageId {
-        self.0.package_id()
+        self.package_id()
     }
 }

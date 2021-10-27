@@ -10,8 +10,21 @@ path = "../shell"
 git = "https://gitdab.com/undefined/path"
 
 [dependencies.serde]
-optional = true
+version = "1.0"
+
+[dependencies.serde_json]
 version = "1.0"
 
 [dependencies.url]
 version = "2.2"
+
+[dependencies.reqwest]
+default-features = false
+features = ["brotli", "cookies", "deflate", "gzip", "json", "multipart", "rustls-tls", "stream", "trust-dns"]
+version = "0.11"
+
+[dependencies.mix_config]
+path = "../config"
+
+[dependencies.mix_version]
+path = "../version"

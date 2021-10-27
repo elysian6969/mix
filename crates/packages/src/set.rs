@@ -32,13 +32,16 @@ impl Set {
     }
 
     /// Get a package from this set if it exists.
+    #[allow(mutable_transmutes)]
     pub fn get_mut<Q>(&mut self, package: &Q) -> Option<&mut Package>
     where
         Package: Borrow<Q>,
         Q: Ord,
     {
-        // SAFETY: I don't care.
-        unsafe { mem::transmute(self.set.get(package)) }
+        self.set
+            .get(package)
+            // SAFETY: I don't care.
+            .map(|package| unsafe { mem::transmute(package) })
     }
 
     /// Return an iterator over the packages within this set.

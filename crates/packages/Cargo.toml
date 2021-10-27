@@ -9,9 +9,6 @@ version = "0.3"
 [dependencies.mix_atom]
 path = "../atom"
 
-[dependencies.mix_build]
-path = "../build"
-
 [dependencies.mix_config]
 path = "../config"
 

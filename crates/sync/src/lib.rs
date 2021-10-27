@@ -33,7 +33,7 @@ pub async fn sync(global: mix_config::Config, config: Config) -> Result<()> {
 
     let futures = repositories
         .iter()
-        .map(|(id, url)| clone(global.clone(), id, url))
+        .map(|(id, url)| sync_repo(global.clone(), id, url))
         .collect::<Vec<_>>();
 
     let results = future::join_all(futures).await;
@@ -41,7 +41,7 @@ pub async fn sync(global: mix_config::Config, config: Config) -> Result<()> {
     Ok(())
 }
 
-pub async fn clone(config: mix_config::Config, id: &RepositoryId, url: &Url) -> Result<()> {
+async fn sync_repo(config: mix_config::Config, id: &RepositoryId, url: &Url) -> Result<()> {
     header!(config.shell(), "sync {}", &id)?;
 
     let _ = config.shell().flush().await;

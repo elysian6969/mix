@@ -2,8 +2,11 @@ use crate::{util, Error, ErrorKind};
 use regex::Regex;
 use std::borrow::Borrow;
 use std::convert::TryFrom;
-use std::fmt;
+use std::ffi::OsStr;
 use std::str::FromStr;
+use std::{fmt, mem};
+
+pub(crate) const CORE: &str = "core";
 
 #[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RepositoryId {
@@ -11,10 +14,18 @@ pub struct RepositoryId {
 }
 
 impl RepositoryId {
+    pub const CORE: &'static RepositoryId = &Self::core();
+
     pub fn new(id: Box<str>) -> Result<Self, Error> {
         util::validate(&id, ErrorKind::Repository)?;
 
         Ok(Self { repr: id })
+    }
+
+    const fn core() -> Self {
+        let repr = unsafe { mem::transmute(CORE) };
+
+        RepositoryId { repr }
     }
 
     pub fn matches(&self, regex: &Regex) -> bool {
@@ -77,6 +88,25 @@ impl FromStr for RepositoryId {
 impl Borrow<str> for RepositoryId {
     fn borrow(&self) -> &str {
         &self.repr
+    }
+}
+
+impl AsRef<str> for RepositoryId {
+    fn as_ref(&self) -> &str {
+        &self.repr
+    }
+}
+
+impl AsRef<OsStr> for RepositoryId {
+    fn as_ref(&self) -> &OsStr {
+        unsafe { &*(&*self.repr as *const str as *const OsStr) }
+    }
+}
+
+#[cfg(feature = "path")]
+impl AsRef<path::Path> for RepositoryId {
+    fn as_ref(&self) -> &path::Path {
+        unsafe { &*(&*self.repr as *const str as *const path::Path) }
     }
 }
 

@@ -4,6 +4,7 @@ use crate::options::{Options, Subcommand};
 use mix_config::Config;
 use mix_packages::Packages;
 use mix_shell::{header, writeln, AsyncDisplay, AsyncWrite};
+use std::sync::Arc;
 use tokio::runtime::Builder;
 
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -14,7 +15,7 @@ mod options;
 async fn async_main() -> Result<()> {
     let options = Options::parse();
     let config = Config::new(&options.prefix).await?;
-    let packages = Packages::from_config(&config).await?;
+    let packages = Arc::new(Packages::from_config(&config).await?);
 
     match options.subcommand {
         Subcommand::Env(env) => {
@@ -82,7 +83,7 @@ async fn async_main() -> Result<()> {
             )?;
         }
         Subcommand::Build(build) => {
-            mix_build::build(config.clone(), build.into_config()).await?;
+            mix_build::build(config.clone(), build.into_config(), packages.clone()).await?;
         }
         Subcommand::Sync(sync) => {
             mix_sync::sync(config.clone(), sync.into_config()).await?;

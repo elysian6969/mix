@@ -1,5 +1,5 @@
-use super::Iter;
-use crate::{Requirement, Version};
+use super::{Entry, Iter};
+use mix_version::Requirement;
 
 pub struct Matches<'a> {
     pub(crate) iter: Iter<'a>,
@@ -7,9 +7,9 @@ pub struct Matches<'a> {
 }
 
 impl<'a> Iterator for Matches<'a> {
-    type Item = &'a Version;
+    type Item = &'a Entry;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.find(|version| version.matches(self.requirement))
+        self.iter.find(|entry| entry.matches(self.requirement))
     }
 }

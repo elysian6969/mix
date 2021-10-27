@@ -2,6 +2,7 @@ use crate::{util, Error, ErrorKind};
 use regex::Regex;
 use std::borrow::Borrow;
 use std::convert::TryFrom;
+use std::ffi::OsStr;
 use std::fmt;
 use std::str::FromStr;
 
@@ -77,6 +78,25 @@ impl FromStr for PackageId {
 impl Borrow<str> for PackageId {
     fn borrow(&self) -> &str {
         &self.repr
+    }
+}
+
+impl AsRef<str> for PackageId {
+    fn as_ref(&self) -> &str {
+        &self.repr
+    }
+}
+
+impl AsRef<OsStr> for PackageId {
+    fn as_ref(&self) -> &OsStr {
+        unsafe { &*(&*self.repr as *const str as *const OsStr) }
+    }
+}
+
+#[cfg(feature = "path")]
+impl AsRef<path::Path> for PackageId {
+    fn as_ref(&self) -> &path::Path {
+        unsafe { &*(&*self.repr as *const str as *const path::Path) }
     }
 }
 
