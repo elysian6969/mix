@@ -1,5 +1,5 @@
 use command_extra::{Child, Stdio};
-use path::{Path, PathBuf};
+use path::Path;
 use std::ffi::{OsStr, OsString};
 use std::io;
 

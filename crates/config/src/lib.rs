@@ -3,7 +3,7 @@
 use crate::settings::Settings;
 use futures_util::stream::StreamExt;
 use mix_id::RepositoryId;
-use mix_shell::{write, writeln, AsyncDisplay, AsyncWrite, Shell};
+use mix_shell::{write, writeln, AsyncWrite, Shell};
 use path::{Path, PathBuf};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -118,7 +118,7 @@ impl Config {
         }
 
         let mut partial = path.to_path_buf();
-        let file_name = path.file_name().unwrap_or(Path::new("<unknown>"));
+        let file_name = path.file_name().unwrap_or_else(|| Path::new("<unknown>"));
         let url = url.as_ref();
         let mut downloaded = 0;
 
@@ -134,7 +134,6 @@ impl Config {
 
         let mut interval = time::interval(Duration::from_millis(50));
         interval.tick().await;
-        let mut downloaded = 0;
         let mut destination = File::create(&partial).await?;
         let response = self.0.http.get(url).send().await?;
         let mut stream = response.bytes_stream();
@@ -150,7 +149,7 @@ impl Config {
                     let bytes = &bytes[..];
 
                     downloaded += bytes.len();
-                    destination.write_all(&bytes).await?;
+                    destination.write_all(bytes).await?;
                 } else {
                     break;
                 }

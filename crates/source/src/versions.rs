@@ -2,7 +2,6 @@ pub use self::entry::Entry;
 pub use self::iter::Iter;
 pub use self::matches::Matches;
 use mix_version::{Requirement, Version};
-use path::{Path, PathBuf};
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -52,6 +51,12 @@ impl Versions {
         let iter = self.versions.values();
 
         Iter { iter }
+    }
+}
+
+impl Default for Versions {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

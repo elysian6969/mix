@@ -1,6 +1,5 @@
 use super::Entry;
 use mix_version::Version;
-use path::PathBuf;
 use std::collections::btree_map;
 
 pub struct Iter<'a> {

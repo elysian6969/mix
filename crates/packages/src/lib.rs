@@ -284,7 +284,7 @@ impl Packages {
             atoms::Atoms::Set(iter)
         };
 
-        matches::Matches { iter, requirement }
+        matches::Matches { iter }
     }
 
     /// Get matching repositories.

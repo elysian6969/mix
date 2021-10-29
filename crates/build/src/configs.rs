@@ -4,33 +4,62 @@ use path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::iter;
 
-const CONFIGS: [&str; 26] = [
-    /* 00 */ "aclocal.m4",
-    /* 01 */ "autogen",
-    /* 02 */ "autogen.sh",
-    /* 03 */ "bootstrap",
-    /* 04 */ "bootstrap.sh",
-    /* 05 */ "Cargo.toml",
-    /* 06 */ "config",
-    /* 07 */ "config.sh",
-    /* 08 */ "Config",
-    /* 09 */ "Config.sh",
-    /* 10 */ "configure",
-    /* 11 */ "configure.ac",
-    /* 12 */ "configure.in",
-    /* 13 */ "configure.sh",
-    /* 14 */ "Configure",
-    /* 15 */ "Configure.sh",
-    /* 16 */ "CMakeLists.txt",
-    /* 17 */ "makefile",
-    /* 18 */ "Makefile",
-    /* 19 */ "Makefile.am",
-    /* 20 */ "Makefile.in",
-    /* 21 */ "meson.build",
-    /* 22 */ "gnumakefile",
-    /* 23 */ "GNUmakefile",
-    /* 24 */ "GNUMakefile",
-    /* 25 */ "x.py",
+const ACLOCAL: &str = "aclocal.m4";
+const AUTOGEN: &str = "autogen";
+const AUTOGEN_SH: &str = "autogen.sh";
+const BOOTSTRAP: &str = "bootstrap";
+const BOOTSTRAP_SH: &str = "bootstrap.sh";
+const BUILD_AUTOGEN_SH: &str = "build/autogen.sh";
+const CARGO: &str = "Cargo.toml";
+const CONFIG: &str = "config";
+const CONFIG_SH: &str = "config.sh";
+const CONFIG_UPPER: &str = "Config";
+const CONFIG_UPPER_SH: &str = "Config.sh";
+const CONFIGURE: &str = "configure";
+const CONFIGURE_AC: &str = "configure.ac";
+const CONFIGURE_IN: &str = "configure.in";
+const CONFIGURE_SH: &str = "configure.sh";
+const CONFIGURE_UPPER: &str = "Configure";
+const CONFIGURE_UPPER_SH: &str = "Configure";
+const CMAKE: &str = "CMakeLists.txt";
+const MAKEFILE: &str = "makefile";
+const MAKEFILE_UPPER: &str = "Makefile";
+const MAKEFILE_AM: &str = "Makefile.am";
+const MAKEFILE_IN: &str = "Makefile.in";
+const MESON: &str = "meson.build";
+const GNUMAKEFILE: &str = "gnumakefile";
+const GNUMAKEFILE_UPPER: &str = "GNUmakefile";
+const GNUMAKEFILE_UPPER2: &str = "GNUMakefile";
+const RUST_BOOTSTRAP: &str = "x.py";
+
+const CONFIGS: [&str; 27] = [
+    ACLOCAL,
+    AUTOGEN,
+    AUTOGEN_SH,
+    BOOTSTRAP,
+    BOOTSTRAP_SH,
+    BUILD_AUTOGEN_SH,
+    CARGO,
+    CONFIG,
+    CONFIG_SH,
+    CONFIG_UPPER,
+    CONFIG_UPPER_SH,
+    CONFIGURE,
+    CONFIGURE_AC,
+    CONFIGURE_IN,
+    CONFIGURE_SH,
+    CONFIGURE_UPPER,
+    CONFIGURE_UPPER_SH,
+    CMAKE,
+    MAKEFILE,
+    MAKEFILE_UPPER,
+    MAKEFILE_AM,
+    MAKEFILE_IN,
+    MESON,
+    GNUMAKEFILE,
+    GNUMAKEFILE_UPPER,
+    GNUMAKEFILE_UPPER2,
+    RUST_BOOTSTRAP,
 ];
 
 // Use to determine the build system to compile this package.
@@ -63,57 +92,63 @@ impl System {
         Self { config }
     }
 
+    pub fn needs_aclocal(&self) -> bool {
+        self.config.contains_key(ACLOCAL) && self.config.contains_key(CONFIGURE_AC)
+    }
+
     pub fn has_autotools(&self) -> bool {
-        self.config.contains_key(CONFIGS[00])
-            || self.config.contains_key(CONFIGS[01])
-            || self.config.contains_key(CONFIGS[02])
-            || self.config.contains_key(CONFIGS[03])
-            || self.config.contains_key(CONFIGS[04])
-            || self.config.contains_key(CONFIGS[10])
-            || self.config.contains_key(CONFIGS[11])
-            || self.config.contains_key(CONFIGS[12])
-            || self.config.contains_key(CONFIGS[13])
-            || self.config.contains_key(CONFIGS[19])
-            || self.config.contains_key(CONFIGS[20])
+        self.needs_aclocal()
+            || self.config.contains_key(AUTOGEN)
+            || self.config.contains_key(AUTOGEN_SH)
+            || self.config.contains_key(CONFIGURE)
+            || self.config.contains_key(CONFIGURE_AC)
+            || self.config.contains_key(CONFIGURE_IN)
+            || self.config.contains_key(CONFIGURE_SH)
+            || self.config.contains_key(MAKEFILE_AM)
+            || self.config.contains_key(MAKEFILE_IN)
+            || self.has_bootstrap()
     }
 
     pub fn has_bootstrap(&self) -> bool {
-        self.config.contains_key(CONFIGS[03]) || self.config.contains_key(CONFIGS[04])
+        self.config.contains_key(BOOTSTRAP) || self.config.contains_key(BOOTSTRAP_SH)
     }
 
     pub fn has_cargo(&self) -> bool {
-        self.config.contains_key(CONFIGS[05])
+        self.config.contains_key(CARGO)
     }
 
     pub fn has_cmake(&self) -> bool {
-        self.config.contains_key(CONFIGS[16])
+        self.config.contains_key(CMAKE)
     }
 
     pub fn has_makefile(&self) -> bool {
-        self.config.contains_key(CONFIGS[17])
-            || self.config.contains_key(CONFIGS[18])
-            || self.config.contains_key(CONFIGS[22])
-            || self.config.contains_key(CONFIGS[23])
-            || self.config.contains_key(CONFIGS[24])
+        self.config.contains_key(MAKEFILE)
+            || self.config.contains_key(MAKEFILE_UPPER)
+            || self.config.contains_key(GNUMAKEFILE)
+            || self.config.contains_key(GNUMAKEFILE_UPPER)
+            || self.config.contains_key(GNUMAKEFILE_UPPER2)
     }
 
     pub fn has_meson(&self) -> bool {
-        self.config.contains_key(CONFIGS[21])
+        self.config.contains_key(MESON)
     }
 
     pub fn has_rust_bootstrap(&self) -> bool {
-        self.config.contains_key(CONFIGS[25])
+        self.config.contains_key(RUST_BOOTSTRAP)
+    }
+
+    pub fn get_autogen(&self) -> Option<&Path> {
+        self.config
+            .get(AUTOGEN)
+            .or_else(|| self.config.get(AUTOGEN_SH))
+            .or_else(|| self.config.get(BUILD_AUTOGEN_SH))
+            .map(as_ref)
     }
 
     pub fn get_autotools(&self) -> Option<(Option<&Path>, Option<&Path>)> {
         if self.has_autotools() {
-            let bootstrap = self
-                .config
-                .get(CONFIGS[03])
-                .or_else(|| self.config.get(CONFIGS[04]))
-                .map(|path| &**path);
-
-            let configure = self.config.get(CONFIGS[10]).map(|path| &**path);
+            let bootstrap = self.get_bootstrap();
+            let configure = self.get_autotools_configure();
 
             Some((bootstrap, configure))
         } else {
@@ -121,36 +156,48 @@ impl System {
         }
     }
 
+    pub fn get_autotools_configure(&self) -> Option<&Path> {
+        self.config.get(CONFIGURE).map(as_ref)
+    }
+
     pub fn get_bootstrap(&self) -> Option<&Path> {
         self.config
-            .get(CONFIGS[03])
-            .or_else(|| self.config.get(CONFIGS[04]))
-            .map(|path| &**path)
+            .get(BOOTSTRAP)
+            .or_else(|| self.config.get(BOOTSTRAP_SH))
+            .map(as_ref)
     }
 
     pub fn get_cargo(&self) -> Option<&Path> {
-        self.config.get(CONFIGS[05]).map(|path| &**path)
+        self.config.get(CARGO).map(as_ref)
+    }
+
+    pub fn get_configure(&self) -> Option<&Path> {
+        self.config.get(CONFIGURE).map(as_ref)
     }
 
     pub fn get_cmake(&self) -> Option<&Path> {
-        self.config.get(CONFIGS[16]).map(|path| &**path)
+        self.config.get(CMAKE).map(as_ref)
     }
 
     pub fn get_makefile(&self) -> Option<&Path> {
         self.config
-            .get(CONFIGS[17])
-            .or_else(|| self.config.get(CONFIGS[18]))
-            .or_else(|| self.config.get(CONFIGS[22]))
-            .or_else(|| self.config.get(CONFIGS[23]))
-            .or_else(|| self.config.get(CONFIGS[24]))
-            .map(|path| &**path)
+            .get(MAKEFILE)
+            .or_else(|| self.config.get(MAKEFILE_UPPER))
+            .or_else(|| self.config.get(GNUMAKEFILE))
+            .or_else(|| self.config.get(GNUMAKEFILE_UPPER))
+            .or_else(|| self.config.get(GNUMAKEFILE_UPPER2))
+            .map(as_ref)
     }
 
     pub fn get_meson(&self) -> Option<&Path> {
-        self.config.get(CONFIGS[21]).map(|path| &**path)
+        self.config.get(MESON).map(as_ref)
     }
 
     pub fn get_rust_bootstrap(&self) -> Option<&Path> {
-        self.config.get(CONFIGS[25]).map(|path| &**path)
+        self.config.get(RUST_BOOTSTRAP).map(as_ref)
     }
+}
+
+fn as_ref(path: &Box<Path>) -> &Path {
+    &**path
 }

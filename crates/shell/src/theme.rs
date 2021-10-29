@@ -111,30 +111,8 @@ impl Theme {
     }
 }
 
-/*
-pub fn header(styles: &Styles, action: impl Display, arguments: impl Display) {
-    println!(
-        "{decoration} {action: <13} {arguments}",
-        decoration = styles.decoration_style.paint(&styles.decoration),
-        action = styles.action_style.paint(&action),
-        arguments = styles.arguments_style.paint(&arguments),
-    );
+impl Default for Theme {
+    fn default() -> Self {
+        Self::new()
+    }
 }
-
-pub fn command_out(styles: &Styles, command: impl Display, output: impl Display) {
-    println!(
-        "{decoration} {command} {output}",
-        decoration = styles.decoration_style.paint(&styles.decoration),
-        command = styles.command_style.paint(&command),
-        output = styles.output_style.paint(&output),
-    );
-}
-
-pub fn command_err(styles: &Styles, command: impl Display, output: impl Display) {
-    println!(
-        "{decoration} {command} {output}",
-        decoration = styles.decoration_style.paint(&styles.decoration),
-        command = styles.command_style.paint(&command),
-        output = styles.output_err_style.paint(&output),
-    );
-}*/

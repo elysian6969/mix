@@ -1,10 +1,8 @@
 pub use crate::error::Error;
 use mix_id::{PackageId, RepositoryId};
-use std::borrow::Borrow;
-use std::cmp::Ordering;
 use std::convert::TryInto;
+use std::fmt;
 use std::str::FromStr;
-use std::{cmp, fmt};
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Atom {

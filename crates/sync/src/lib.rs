@@ -3,16 +3,13 @@
 use command_extra::Command;
 use futures_util::future;
 use mix_id::RepositoryId;
-use mix_shell::{header, writeln, AsyncWrite};
-use mix_triple::Triple;
+use mix_shell::{header, AsyncWrite};
 use path::PathBuf;
 use std::collections::BTreeSet;
 use url::Url;
 
 pub(crate) type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
-
-mod compiler;
 
 #[derive(Debug)]
 pub struct Config {
@@ -27,7 +24,7 @@ pub async fn sync(global: mix_config::Config, config: Config) -> Result<()> {
         global
             .repositories()
             .iter()
-            .filter(|(id, url)| config.repositories.contains(id.as_str()))
+            .filter(|(id, _url)| config.repositories.contains(id.as_str()))
             .collect()
     };
 
@@ -36,7 +33,7 @@ pub async fn sync(global: mix_config::Config, config: Config) -> Result<()> {
         .map(|(id, url)| sync_repo(global.clone(), id, url))
         .collect::<Vec<_>>();
 
-    let results = future::join_all(futures).await;
+    let _results = future::join_all(futures).await;
 
     Ok(())
 }

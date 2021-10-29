@@ -32,6 +32,10 @@ impl Versions {
         self.versions.last_key_value().map(|(key, _value)| key)
     }
 
+    pub fn contains(&self, version: &Version) -> bool {
+        self.versions.contains_key(version)
+    }
+
     pub fn matches<'a>(&'a self, requirement: &'a Requirement) -> Matches<'a> {
         let iter = self.iter();
 
@@ -62,6 +66,12 @@ impl Versions {
         let iter = self.versions.values();
 
         Paths { iter }
+    }
+}
+
+impl Default for Versions {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
