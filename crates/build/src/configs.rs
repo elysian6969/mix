@@ -121,6 +121,10 @@ impl System {
         self.config.contains_key(CMAKE)
     }
 
+    pub fn has_configure_ac(&self) -> bool {
+        self.config.contains_key(CONFIGURE_AC)
+    }
+
     pub fn has_makefile(&self) -> bool {
         self.config.contains_key(MAKEFILE)
             || self.config.contains_key(MAKEFILE_UPPER)

@@ -10,11 +10,14 @@ pub struct Command {
 const ROOT: &str = "/";
 
 pub mod program {
+    pub(crate) const AUTORECONF: &str = "autoreconf";
+    pub(crate) const BSDTAR: &str = "bsdtar";
     pub(crate) const CARGO: &str = "cargo";
     pub(crate) const CMAKE: &str = "cmake";
     pub(crate) const MAKE: &str = "make";
     pub(crate) const MESON: &str = "meson";
     pub(crate) const SH: &str = "sh";
+    pub(crate) const TAR: &str = "tar";
 }
 
 mod env {
@@ -47,16 +50,36 @@ impl Command {
         Self { command }
     }
 
-    pub fn sh() -> Self {
-        Self::new(program::SH)
+    pub fn autoreconf() -> Self {
+        Self::new(program::AUTORECONF)
+    }
+
+    pub fn bsdtar() -> Self {
+        Self::new(program::BSDTAR)
+    }
+
+    pub fn cargo() -> Self {
+        Self::new(program::CARGO)
+    }
+
+    pub fn cmake() -> Self {
+        Self::new(program::CMAKE)
     }
 
     pub fn make() -> Self {
         Self::new(program::MAKE)
     }
 
-    pub fn cargo() -> Self {
-        Self::new(program::CARGO)
+    pub fn meson() -> Self {
+        Self::new(program::MESON)
+    }
+
+    pub fn sh() -> Self {
+        Self::new(program::SH)
+    }
+
+    pub fn tar() -> Self {
+        Self::new(program::TAR)
     }
 
     pub fn arg<A>(&mut self, arg: A) -> &mut Self

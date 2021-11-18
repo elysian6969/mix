@@ -10,7 +10,7 @@
 
 use self::process::Command;
 use crate::compiler::{Compiler, Linker};
-use command_extra::{Line, Stdio};
+use command_extra::{Line, Lines, Stdio};
 use futures_util::stream::TryStreamExt;
 use mix_atom::Requirement;
 use mix_packages::{Package, Packages};
@@ -103,11 +103,6 @@ pub async fn build(
     );
 
     let dependencies = dependencies.into_iter().rev().collect::<Vec<_>>();
-
-    /*for dependency in dependencies.iter() {
-        println!("{}/{}", dependency.repository_id(), dependency.package_id());
-    }*/
-
     let mut sources = vec![];
     let mut exists = HashSet::new();
     let iter = dependencies.iter().flat_map(|package| {
@@ -124,19 +119,20 @@ pub async fn build(
         }
     }
 
-    for (_package, source) in sources.iter() {
+    /// fetch everything first
+    for (package, source) in sources.iter() {
         source.update(&config).await?;
 
         let versions = source.versions(&config).await?;
 
         if let Some(entry) = versions.latest() {
+            println!("{}/{}", package.repository_id(), package.package_id());
+
             config.download_file(&entry.path, &entry.url).await?;
         }
     }
 
     for (package, source) in sources {
-        source.update(&config).await?;
-
         let versions = source.versions(&config).await?;
 
         if let Some(entry) = versions.latest() {
@@ -144,7 +140,7 @@ pub async fn build(
                 continue;
             }
 
-            config.download_file(&entry.path, &entry.url).await?;
+            println!("{}/{}", package.repository_id(), package.package_id());
 
             let version_str = entry.version.to_string();
             let build_dir = package.build_prefix().join(version_str);
@@ -152,7 +148,7 @@ pub async fn build(
             //println!("{:?}", &build_dir);
 
             let _ = build_dir.create_dir_all_async().await;
-            let mut command = Command::new("bsdtar");
+            let mut command = Command::bsdtar();
 
             command
                 .arg("xvf")
@@ -198,7 +194,8 @@ pub async fn build(
             let repository_id = package.repository_id();
             let package_id = package.package_id();
             let version = &entry.version;
-            let target_str = build_config.target.as_str();
+            let target = build_config.target;
+            let target_str = target.as_str();
             let version_str = version.to_string();
             let version_str = version_str.as_str();
 
@@ -322,7 +319,7 @@ pub async fn build(
                     .c_flags(&cflags)
                     .cxx_compiler(CLANGXX)
                     .cxx_flags(&cflags)
-                    .current_dir(&build_dir)
+                    .current_dir(&source_dir)
                     .home_dir(&current_dir)
                     .lang(EN_US)
                     .linker(LLD)
@@ -340,12 +337,7 @@ pub async fn build(
                     let _ = child.wait().await;
                 });
 
-                while let Some(line) = lines.next_line().await {
-                    match line? {
-                        Line::Err(line) => writeln!(config.shell(), "{} {}", "bootstrap", line)?,
-                        Line::Out(line) => writeln!(config.shell(), "{} {}", "bootstrap", line)?,
-                    }
-                }
+                copy_output(&config, "config", &mut lines).await?;
             }
 
             if let Some(autogen) = build.get_autogen() {
@@ -376,32 +368,15 @@ pub async fn build(
                     let _ = child.wait().await;
                 });
 
-                let mut interval = time::interval(Duration::from_millis(50));
-
-                loop {
-                    tokio::select! {
-                        _ = interval.tick() => {
-                            config.shell().flush().await?;
-                        }
-                        line = lines.next_line() => if let Some(line) = line {
-                            match line? {
-                                Line::Err(line) => last_line = line,
-                                Line::Out(line) => last_line = line,
-                            }
-
-                            writeln!(config.shell(), " > autogen {}", &last_line)?;
-                        } else {
-                            break;
-                        }
-                    }
-                }
+                copy_output(&config, "config", &mut lines).await?;
             }
 
-            if build.needs_aclocal() {
-                let mut command = Command::new("aclocal");
+            if build.has_configure_ac() {
+                let mut command = Command::autoreconf();
 
                 command
-                    .arg("--install")
+                    .arg("-f")
+                    .arg("-i")
                     //.env_clear()
                     //.c_compiler(GCC)
                     //.c_flags(&cflags)
@@ -426,25 +401,7 @@ pub async fn build(
                     let _ = child.wait().await;
                 });
 
-                let mut interval = time::interval(Duration::from_millis(50));
-
-                loop {
-                    tokio::select! {
-                        _ = interval.tick() => {
-                            config.shell().flush().await?;
-                        }
-                        line = lines.next_line() => if let Some(line) = line {
-                            let line = match line? {
-                                Line::Err(line) => line,
-                                Line::Out(line) => line,
-                            };
-
-                            writeln!(config.shell(), " > aclocal {}", &line)?;
-                        } else {
-                            break;
-                        }
-                    }
-                }
+                copy_output(&config, "config", &mut lines).await?;
             }
 
             let build = configs::System::new(package_id, &source_dir).await;
@@ -454,6 +411,9 @@ pub async fn build(
 
                 command
                     .arg(format!("--prefix={}", &destination))
+                    //.arg(format!("--build={}", &target.as_gnu_str()))
+                    //.arg(format!("--host={}", &target.as_gnu_str()))
+                    .arg(format!("--target={}", &target.as_gnu_str()))
                     //.env_clear()
                     //.c_compiler(GCC)
                     //.c_flags(&cflags)
@@ -478,28 +438,10 @@ pub async fn build(
                     let _ = child.wait().await;
                 });
 
-                let mut interval = time::interval(Duration::from_millis(50));
-
-                loop {
-                    tokio::select! {
-                        _ = interval.tick() => {
-                            config.shell().flush().await?;
-                        }
-                        line = lines.next_line() => if let Some(line) = line {
-                            match line? {
-                                Line::Err(line) => last_line = line,
-                                Line::Out(line) => last_line = line,
-                            }
-
-                            writeln!(config.shell(), " > configure {}", &last_line)?;
-                        } else {
-                            break;
-                        }
-                    }
-                }
+                copy_output(&config, "config", &mut lines).await?;
             }
 
-            let mut command = Command::new("make");
+            let mut command = Command::make();
 
             command
                 .arg(format!("-j{}", build_config.jobs))
@@ -527,27 +469,9 @@ pub async fn build(
                 let _ = child.wait().await;
             });
 
-            let mut interval = time::interval(Duration::from_millis(50));
+            copy_output(&config, "build", &mut lines).await?;
 
-            loop {
-                tokio::select! {
-                    _ = interval.tick() => {
-                        config.shell().flush().await?;
-                    }
-                    line = lines.next_line() => if let Some(line) = line {
-                        let line = match line? {
-                            Line::Err(line) => line,
-                            Line::Out(line) => line,
-                        };
-
-                        writeln!(config.shell(), " > make {}", &line)?;
-                    } else {
-                        break;
-                    }
-                }
-            }
-
-            let mut command = Command::new("make");
+            let mut command = Command::make();
 
             command
                 .arg("install")
@@ -576,24 +500,95 @@ pub async fn build(
                 let _ = child.wait().await;
             });
 
-            let mut interval = time::interval(Duration::from_millis(50));
+            copy_output(&config, "install", &mut lines).await?;
+            
+            if !source_dir.is_dir_async().await {
+                continue;
+            }
 
-            loop {
-                tokio::select! {
-                    _ = interval.tick() => {
-                        config.shell().flush().await?;
-                    }
-                    line = lines.next_line() => if let Some(line) = line {
-                        let line = match line? {
-                            Line::Err(line) => line,
-                            Line::Out(line) => line,
-                        };
+            let mut command = Command::make();
 
-                        writeln!(config.shell(), " > make {}", &line)?;
-                    } else {
-                        break;
-                    }
-                }
+            command
+                .arg(format!("-j{}", build_config.jobs))
+                //.env_clear()
+                //.c_compiler(GCC)
+                //.c_flags(&cflags)
+                //.cxx_compiler(GXX)
+                //.cxx_flags(&cflags)
+                .current_dir(&source_dir)
+                .home_dir(&current_dir)
+                .lang(EN_US)
+                //.linker(LD)
+                //.linker_flags(&ldflags)
+                //.paths(["/milk/global/bin", "/bin", "/sbin", "/usr/bin", "/usr/sbin"])
+                .stderr(Stdio::piped())
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped());
+
+            let mut child = command.spawn().await?;
+            let stdio = child.stdio()?.expect("stdio");
+            let mut lines = stdio.lines();
+
+            tokio::spawn(async move {
+                // TODO: Proper error handling!
+                let _ = child.wait().await;
+            });
+
+            copy_output(&config, "build", &mut lines).await?;
+
+            let mut command = Command::make();
+
+            command
+                .arg("install")
+                .arg(format!("-j{}", build_config.jobs))
+                //.env_clear()
+                //.c_compiler(GCC)
+                //.c_flags(&cflags)
+                //.cxx_compiler(GXX)
+                //.cxx_flags(&cflags)
+                .current_dir(&source_dir)
+                .home_dir(&current_dir)
+                .lang(EN_US)
+                //.linker(LD)
+                //.linker_flags(&ldflags)
+                //.paths(["/milk/global/bin", "/bin", "/sbin", "/usr/bin", "/usr/sbin"])
+                .stderr(Stdio::piped())
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped());
+
+            let mut child = command.spawn().await?;
+            let stdio = child.stdio()?.expect("stdio");
+            let mut lines = stdio.lines();
+
+            tokio::spawn(async move {
+                // TODO: Proper error handling!
+                let _ = child.wait().await;
+            });
+
+            copy_output(&config, "install", &mut lines).await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn copy_output(config: &mix_config::Config, prefix: &str, lines: &mut Lines) -> Result<()> {
+    let mut interval = time::interval(Duration::from_millis(50));
+
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                config.shell().flush().await?;
+            }
+            line = lines.next_line() => if let Some(line) = line {
+                let line = match line? {
+                    Line::Err(line) => line,
+                    Line::Out(line) => line,
+                };
+
+                header!(config.shell(), "{} {}", config.shell().theme().command_paint(prefix), &line)?;
+            } else {
+                break;
             }
         }
     }
