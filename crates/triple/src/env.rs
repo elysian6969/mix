@@ -1,44 +1,47 @@
 use core::fmt;
 
+const GNU: &str = "gnu";
+const MUSL: &str = "musl";
+
+/// an environment
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-enum EnvRepr {
-    Glibc,
+pub enum Env {
+    Gnu,
     Musl,
 }
 
-#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Env {
-    repr: EnvRepr,
-}
-
 impl Env {
-    const fn new(repr: EnvRepr) -> Self {
-        Self { repr }
+    /// returns the host environment (what was used to compile this crate)
+    #[inline]
+    pub const fn host() -> Env {
+        #[cfg(target_env = "gnu")]
+        const HOST: Env = Env::Gnu;
+
+        #[cfg(target_env = "musl")]
+        const HOST: Env = Env::Musl;
+
+        HOST
     }
 
-    pub const fn glibc() -> Self {
-        Self::new(EnvRepr::Glibc)
-    }
-
-    pub const fn musl() -> Self {
-        Self::new(EnvRepr::Musl)
-    }
-
+    /// returns this environment as a string
+    #[inline]
     pub const fn as_str(&self) -> &'static str {
         match self {
-            const { Env::glibc() } => "glibc",
-            const { Env::musl() } => "musl",
+            Env::Gnu => GNU,
+            Env::Musl => MUSL,
         }
     }
 }
 
 impl fmt::Debug for Env {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
 
 impl fmt::Display for Env {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }

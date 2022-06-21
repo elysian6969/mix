@@ -68,6 +68,7 @@ pub struct System {
 }
 
 impl System {
+    #[inline]
     pub async fn new(id: &PackageId, dir: impl AsRef<Path>) -> Self {
         let id = id.as_str();
         let dir = dir.as_ref();
@@ -92,10 +93,12 @@ impl System {
         Self { config }
     }
 
+    #[inline]
     pub fn needs_aclocal(&self) -> bool {
         self.config.contains_key(ACLOCAL) && self.config.contains_key(CONFIGURE_AC)
     }
 
+    #[inline]
     pub fn has_autotools(&self) -> bool {
         self.needs_aclocal()
             || self.config.contains_key(AUTOGEN)
@@ -109,22 +112,27 @@ impl System {
             || self.has_bootstrap()
     }
 
+    #[inline]
     pub fn has_bootstrap(&self) -> bool {
         self.config.contains_key(BOOTSTRAP) || self.config.contains_key(BOOTSTRAP_SH)
     }
 
+    #[inline]
     pub fn has_cargo(&self) -> bool {
         self.config.contains_key(CARGO)
     }
 
+    #[inline]
     pub fn has_cmake(&self) -> bool {
         self.config.contains_key(CMAKE)
     }
 
+    #[inline]
     pub fn has_configure_ac(&self) -> bool {
         self.config.contains_key(CONFIGURE_AC)
     }
 
+    #[inline]
     pub fn has_makefile(&self) -> bool {
         self.config.contains_key(MAKEFILE)
             || self.config.contains_key(MAKEFILE_UPPER)
@@ -133,14 +141,17 @@ impl System {
             || self.config.contains_key(GNUMAKEFILE_UPPER2)
     }
 
+    #[inline]
     pub fn has_meson(&self) -> bool {
         self.config.contains_key(MESON)
     }
 
+    #[inline]
     pub fn has_rust_bootstrap(&self) -> bool {
         self.config.contains_key(RUST_BOOTSTRAP)
     }
 
+    #[inline]
     pub fn get_autogen(&self) -> Option<&Path> {
         self.config
             .get(AUTOGEN)
@@ -149,6 +160,7 @@ impl System {
             .map(as_ref)
     }
 
+    #[inline]
     pub fn get_autotools(&self) -> Option<(Option<&Path>, Option<&Path>)> {
         if self.has_autotools() {
             let bootstrap = self.get_bootstrap();
@@ -160,10 +172,12 @@ impl System {
         }
     }
 
+    #[inline]
     pub fn get_autotools_configure(&self) -> Option<&Path> {
         self.config.get(CONFIGURE).map(as_ref)
     }
 
+    #[inline]
     pub fn get_bootstrap(&self) -> Option<&Path> {
         self.config
             .get(BOOTSTRAP)
@@ -171,18 +185,22 @@ impl System {
             .map(as_ref)
     }
 
+    #[inline]
     pub fn get_cargo(&self) -> Option<&Path> {
         self.config.get(CARGO).map(as_ref)
     }
 
+    #[inline]
     pub fn get_configure(&self) -> Option<&Path> {
         self.config.get(CONFIGURE).map(as_ref)
     }
 
+    #[inline]
     pub fn get_cmake(&self) -> Option<&Path> {
         self.config.get(CMAKE).map(as_ref)
     }
 
+    #[inline]
     pub fn get_makefile(&self) -> Option<&Path> {
         self.config
             .get(MAKEFILE)
@@ -193,15 +211,18 @@ impl System {
             .map(as_ref)
     }
 
+    #[inline]
     pub fn get_meson(&self) -> Option<&Path> {
         self.config.get(MESON).map(as_ref)
     }
 
+    #[inline]
     pub fn get_rust_bootstrap(&self) -> Option<&Path> {
         self.config.get(RUST_BOOTSTRAP).map(as_ref)
     }
 }
 
+#[inline]
 fn as_ref(path: &Box<Path>) -> &Path {
     &**path
 }

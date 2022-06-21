@@ -24,6 +24,7 @@ pub struct Flag {
 }
 
 impl Flag {
+    #[inline]
     pub fn new(kind: Kind, key: impl AsRef<OsStr>, value: Value) -> Self {
         Self {
             kind,
@@ -32,6 +33,7 @@ impl Flag {
         }
     }
 
+    #[inline]
     pub fn to_os_string(&self) -> OsString {
         let mut buf = OsString::new();
 
@@ -70,6 +72,7 @@ impl Flag {
     }
 }
 
+#[inline]
 pub async fn configure(
     styles: &Styles,
     work_dir: impl AsRef<Path>,
@@ -114,110 +117,3 @@ pub async fn configure(
 
     Ok(())
 }
-
-/*
-        if options.triple == "i686-linux-gnu" {
-            command.env("CFLAGS", "-m32").env("CXXFLAGS:", "-m32");
-        }
-
-        command.args(options.define.iter().map(|(k, v)| match v {
-            Value::Bool(true) => format!("--enable-{k}"),
-            Value::Bool(false) => format!("--disable-{k}"),
-            Value::String(string) => format!("--enable-{k}={string}"),
-        }));
-
-        command.args(options.include.iter().map(|(k, v)| match v {
-            Value::Bool(true) => format!("--with-{k}"),
-            Value::Bool(false) => format!("--without-{k}"),
-            Value::String(string) => format!("--with-{k}={string}"),
-        }));
-
-        println!("{command:?}");
-
-        let mut child = command.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
-        let mut lines = stdio.lines();
-
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
-
-        while let Some(line) = lines.next().await {
-            match line? {
-                Line::Err(line) => shell::command_err(&styles, "configure", line),
-                Line::Out(line) => shell::command_out(&styles, "configure", line),
-            }
-        }
-
-        let mut make = Command::new("make");
-
-        make.current_dir(&build_dir);
-        make.env_remove("CC");
-        make.env_remove("CFLAGS");
-        make.env_remove("CXX");
-        make.env_remove("CXXFLAGS");
-        make.env_remove("LIBS");
-
-        make.arg(format!("-j{}", options.jobs))
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        println!("{make:?}");
-
-        let mut child = make.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
-        let mut lines = stdio.lines();
-
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
-
-        while let Some(line) = lines.next().await {
-            match line? {
-                Line::Err(line) => shell::command_err(&styles, "build", line),
-                Line::Out(line) => shell::command_out(&styles, "build", line),
-            }
-        }
-
-        let mut make = Command::new("make");
-
-        make.current_dir(&build_dir);
-        make.env_remove("CC");
-        make.env_remove("CFLAGS");
-        make.env_remove("CXX");
-        make.env_remove("CXXFLAGS");
-        make.env_remove("LIBS");
-
-        make.arg("install")
-            .arg(format!("-j{}", options.jobs))
-            .stderr(Stdio::piped())
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped());
-
-        println!("{make:?}");
-
-        let mut child = make.spawn()?;
-        let stdio = command_extra::Stdio::from_child(&mut child)
-            .ok_or("Failed to extract stdio from child.")?;
-        let mut lines = stdio.lines();
-
-        tokio::spawn(async move {
-            // TODO: Proper error handling!
-            let _ = child.wait().await;
-        });
-
-        while let Some(line) = lines.next().await {
-            match line? {
-                Line::Err(line) => shell::command_err(&styles, "install", line),
-                Line::Out(line) => shell::command_out(&styles, "install", line),
-            }
-        }
-    }
-
-    Ok(())
-}*/

@@ -13,8 +13,9 @@ pub struct Options {
     pub repositories: Vec<RepositoryId>,
 }
 
-impl Options {
-    pub fn into_config(self) -> Config {
+impl Into<Config> for Options {
+    #[inline]
+    fn into(self) -> Config {
         Config {
             prefix: self.prefix,
             repositories: self.repositories.into_iter().collect(),

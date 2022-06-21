@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies.clap]
 features = ["derive", "wrap_help"]
-version = "3.0.0-beta"
+version = "3.0"
 
 [dependencies.futures-util]
 version = "0.3"
@@ -24,9 +24,6 @@ path = "crates/build"
 
 [dependencies.mix_config]
 path = "crates/config"
-
-[dependencies.mix_env]
-path = "crates/env"
 
 [dependencies.mix_id]
 path = "crates/id"
@@ -48,7 +45,7 @@ path = "crates/triple"
 
 [dependencies.tokio]
 features = ["io-util", "process", "macros", "rt", "sync"]
-version = "1.12"
+version = "1.18"
 
 [workspace]
 members = ["crates/*"]

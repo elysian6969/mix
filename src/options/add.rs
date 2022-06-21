@@ -37,7 +37,7 @@ pub struct Options {
     pub requirement: Requirement,
 
     /// Jobs to build with.
-    #[clap(long, short)]
+    #[clap(default_value = "1", long, short)]
     pub jobs: usize,
 
     /// Maps to `--enable/--disable`.
@@ -53,8 +53,9 @@ pub struct Options {
     pub build_dir: bool,
 }
 
-impl Options {
-    pub fn into_config(self) -> Config {
+impl Into<Config> for Options {
+    #[inline]
+    fn into(self) -> Config {
         Config {
             prefix: self.prefix,
             target: self.target,

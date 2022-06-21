@@ -12,9 +12,6 @@ path = "../atom"
 [dependencies.mix_config]
 path = "../config"
 
-[dependencies.mix_env]
-path = "../env"
-
 [dependencies.mix_id]
 path = "../id"
 

@@ -1,38 +1,39 @@
 use core::fmt;
 
+/// a system
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-enum SysRepr {
+pub enum Sys {
     Linux,
 }
 
-#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Sys {
-    repr: SysRepr,
-}
-
 impl Sys {
-    const fn new(repr: SysRepr) -> Self {
-        Self { repr }
+    /// returns the host system (what was used to compile this crate)
+    #[inline]
+    pub const fn host() -> Self {
+        #[cfg(target_os = "linux")]
+        const HOST: Sys = Sys::Linux;
+
+        HOST
     }
 
-    pub const fn linux() -> Self {
-        Self::new(SysRepr::Linux)
-    }
-
+    /// returns this system as a string
+    #[inline]
     pub const fn as_str(&self) -> &'static str {
         match self {
-            const { Sys::linux() } => "linux",
+            Sys::Linux => "linux",
         }
     }
 }
 
 impl fmt::Debug for Sys {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
 
 impl fmt::Display for Sys {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }

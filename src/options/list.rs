@@ -10,4 +10,8 @@ pub struct Options {
     /// List installed only.
     #[clap(long, short)]
     pub installed: bool,
+
+    /// Show dependencies.
+    #[clap(long, short)]
+    pub depend: bool,
 }

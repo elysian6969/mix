@@ -1,26 +1,26 @@
 use clap::Parser;
 use path::PathBuf;
 
-mod build;
-mod env;
-mod list;
+mod add;
+mod remove;
 mod sync;
 
 #[derive(Parser, Debug)]
 pub enum Subcommand {
-    /// Inspect a package's build environment.
-    Env(env::Options),
+    /// install package(s)
+    #[clap(alias = "a")]
+    Add(add::Options),
 
-    /// List packages.
-    List(list::Options),
+    /// remove package(s)
+    #[clap(alias = "r")]
+    Remove(remove::Options),
 
-    /// Build a package.
-    Build(build::Options),
-
-    /// Sync repositories
+    /// sync repos
+    #[clap(alias = "s")]
     Sync(sync::Options),
 }
 
+/// milk package mangler
 #[derive(Parser, Debug)]
 pub struct Options {
     #[clap(default_value = "/milk", long)]

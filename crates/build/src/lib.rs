@@ -1,12 +1,10 @@
 #![allow(dead_code)]
 #![allow(incomplete_features)]
 #![feature(generators)]
-#![feature(format_args_capture)]
-#![feature(iter_zip)]
 #![feature(inline_const)]
 #![feature(format_args_nl)]
-#![feature(option_result_unwrap_unchecked)]
 #![feature(iter_intersperse)]
+#![feature(inline_const_pat)]
 
 use self::process::Command;
 use crate::compiler::{Compiler, Linker};
@@ -14,8 +12,8 @@ use command_extra::{Line, Lines, Stdio};
 use futures_util::stream::TryStreamExt;
 use mix_atom::Requirement;
 use mix_packages::{Package, Packages};
-use mix_shell::{header, write, writeln, AsyncWrite};
-use mix_triple::Triple;
+use mix_shell::{header, write, AsyncWrite};
+use mix_triple::{Arch, Triple};
 use path::PathBuf;
 use std::borrow::Borrow;
 use std::borrow::Cow;
@@ -58,7 +56,7 @@ pub(crate) const LLD: &str = "ld.lld";
 
 use std::collections::HashSet;
 
-fn resolve(
+pub fn resolve(
     config: &mix_config::Config,
     packages: &Arc<Packages>,
     dependencies: &mut Vec<Package>,
@@ -86,12 +84,13 @@ fn resolve(
     }
 }
 
+/// Build a specific package.
 pub async fn build(
     config: mix_config::Config,
     build_config: Config,
     packages: Arc<Packages>,
 ) -> Result<()> {
-    let mut dependencies = vec![];
+    let mut dependencies = Vec::new();
     let mut exists = HashSet::new();
 
     resolve(
@@ -102,10 +101,10 @@ pub async fn build(
         &build_config.requirement,
     );
 
-    let dependencies = dependencies.into_iter().rev().collect::<Vec<_>>();
-    let mut sources = vec![];
+    let mut sources = Vec::new();
     let mut exists = HashSet::new();
-    let iter = dependencies.iter().flat_map(|package| {
+
+    let iter = dependencies.iter().rev().flat_map(|package| {
         package
             .sources()
             .iter()
@@ -116,17 +115,19 @@ pub async fn build(
         if !exists.contains(source) {
             sources.push((package, source));
             exists.insert(source);
+        } else {
+            //println!("duplicate {:?}", package.name);
         }
     }
 
-    /// fetch everything first
+    // fetch everything first
     for (package, source) in sources.iter() {
         source.update(&config).await?;
 
         let versions = source.versions(&config).await?;
 
         if let Some(entry) = versions.latest() {
-            println!("{}/{}", package.repository_id(), package.package_id());
+            //println!("{}/{}", package.repository_id(), package.package_id());
 
             config.download_file(&entry.path, &entry.url).await?;
         }
@@ -214,7 +215,7 @@ pub async fn build(
                 .join("2.34.0");
 
             let libc_lib = libc_root.join("lib");
-            let dynamic_linker = format!("ld-linux-{}.so.2", build_config.target.arch_str());
+            let dynamic_linker = format!("ld-linux-{}.so.2", build_config.target.as_tuple().0.as_str());
 
             let _compiler_root = build_config
                 .prefix
@@ -249,8 +250,8 @@ pub async fn build(
             compiler.opt_level("fast");
 
             if matches!(
-                build_config.target,
-                const { Triple::i686() } | const { Triple::x86_64() }
+                build_config.target.as_tuple().0,
+                Arch::i686 | Arch::x86_64
             ) {
                 compiler.target_cpu("native");
             }
@@ -300,15 +301,40 @@ pub async fn build(
                 &version,
             )?;
 
-            header!(config.shell(), "destination {}", &destination)?;
-            header!(config.shell(), "build {}", &build_dir)?;
-            header!(config.shell(), "cflags {}", &cflags)?;
-            header!(config.shell(), "ldflags {}", &ldflags)?;
+            header!(
+                config.shell(),
+                "{} {}",
+                config.shell().theme().command_paint("destination"),
+                &destination
+            )?;
+            header!(
+                config.shell(),
+                "{} {}",
+                config.shell().theme().command_paint("build"),
+                &build_dir
+            )?;
+            header!(
+                config.shell(),
+                "{} {}",
+                config.shell().theme().command_paint("CFLAGS"),
+                &cflags
+            )?;
+            header!(
+                config.shell(),
+                "{} {}",
+                config.shell().theme().command_paint("LDFLAGS"),
+                &ldflags
+            )?;
 
             let build = configs::System::new(package_id, &source_dir).await;
 
             for (_name, build_config) in build.config.iter() {
-                header!(config.shell(), "found {}", build_config)?;
+                header!(
+                    config.shell(),
+                    "{} {}",
+                    config.shell().theme().command_paint("found"),
+                    build_config
+                )?;
             }
 
             if let Some((Some(bootstrap), _)) = build.get_autotools() {
@@ -413,7 +439,7 @@ pub async fn build(
                     .arg(format!("--prefix={}", &destination))
                     //.arg(format!("--build={}", &target.as_gnu_str()))
                     //.arg(format!("--host={}", &target.as_gnu_str()))
-                    .arg(format!("--target={}", &target.as_gnu_str()))
+                    .arg(format!("--target={}", &target.as_str()))
                     //.env_clear()
                     //.c_compiler(GCC)
                     //.c_flags(&cflags)
@@ -464,9 +490,17 @@ pub async fn build(
             let stdio = child.stdio()?.expect("stdio");
             let mut lines = stdio.lines();
 
-            tokio::spawn(async move {
+            let handle: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
                 // TODO: Proper error handling!
-                let _ = child.wait().await;
+                let exit_code = child.wait().await?;
+
+                if !exit_code.success() {
+                    println!("bad!");
+
+                    return Err("bad".into());
+                }
+
+                Ok(())
             });
 
             copy_output(&config, "build", &mut lines).await?;
@@ -495,13 +529,21 @@ pub async fn build(
             let stdio = child.stdio()?.expect("stdio");
             let mut lines = stdio.lines();
 
-            tokio::spawn(async move {
+            let handle: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
                 // TODO: Proper error handling!
-                let _ = child.wait().await;
+                let exit_code = child.wait().await?;
+
+                if !exit_code.success() {
+                    println!("bad!");
+
+                    return Err("bad".into());
+                }
+
+                Ok(())
             });
 
             copy_output(&config, "install", &mut lines).await?;
-            
+
             if !source_dir.is_dir_async().await {
                 continue;
             }
@@ -529,9 +571,17 @@ pub async fn build(
             let stdio = child.stdio()?.expect("stdio");
             let mut lines = stdio.lines();
 
-            tokio::spawn(async move {
+            let handle: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
                 // TODO: Proper error handling!
-                let _ = child.wait().await;
+                let exit_code = child.wait().await?;
+
+                if !exit_code.success() {
+                    println!("bad!");
+
+                    return Err("bad".into());
+                }
+
+                Ok(())
             });
 
             copy_output(&config, "build", &mut lines).await?;
@@ -560,12 +610,25 @@ pub async fn build(
             let stdio = child.stdio()?.expect("stdio");
             let mut lines = stdio.lines();
 
-            tokio::spawn(async move {
+            let handle: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
                 // TODO: Proper error handling!
-                let _ = child.wait().await;
+                let exit_code = child.wait().await?;
+
+                if !exit_code.success() {
+                    println!("bad!");
+
+                    return Err("bad".into());
+                }
+
+                Ok(())
             });
 
-            copy_output(&config, "install", &mut lines).await?;
+            let copy_output = copy_output(&config, "install", &mut lines);
+
+            tokio::select! {
+                _ = copy_output => {},
+                _ = handle => {},
+            };
         }
     }
 

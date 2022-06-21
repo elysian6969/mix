@@ -1,5 +1,4 @@
 #![feature(map_first_last)]
-#![feature(option_result_unwrap_unchecked)]
 #![feature(str_split_as_str)]
 
 pub use crate::error::Error;
